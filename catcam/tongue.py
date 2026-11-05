@@ -11,9 +11,10 @@ Sizes are in mouth widths (the cat's closed mouth, corner to corner), like the
 teeth, so a big-mouthed cat gets a bigger tongue.
 """
 
+import cv2
 import numpy as np
 
-from catcam.mouth_fit import LOWER_INNER_LIP
+from catcam.mouth_fit import LOWER_INNER_LIP, UPPER_INNER_LIP
 
 WIDTH = 0.5  # across
 LENGTH = 0.5  # how far the tip reaches below the lower lip when fully out
@@ -21,7 +22,18 @@ INSET = 0.08  # the root sits this far up inside the mouth (at most the lip gap)
 FORWARD = 0.05  # in face widths: the tongue lies this far in front of the lips, over the lower lip
 CURL = 0.04  # in face widths: the tip comes this much further toward the viewer
 LIP_SHADOW = 0.12  # a mouth open less than this still shades the tongue where it leaves the lips
-TONGUE_RANGE = (0.15, 0.6)  # tongueOut score mapped to 0..1 out
+
+# Seeing the tongue in the webcam picture (the face model has no tongue
+# score): the opening between your lips is normally dark (throat) or white
+# (teeth); a tongue fills it with something bright and red. Pixels count as
+# tongue when their hue is red (OpenCV hue 0..179), they are at least this
+# saturated (0..255), and at least this bright compared to your cheeks.
+TONGUE_HUE = (12, 168)  # red: below the first or above the second
+TONGUE_SATURATION = 55
+TONGUE_BRIGHTNESS = 0.45  # of the cheeks' brightness
+CHEEKS = [50, 280, 101, 330, 205, 425]  # landmarks on the cheeks, for the skin brightness
+FILLED_RANGE = (0.35, 0.7)  # share of the opening that is tongue, mapped to 0..1
+OPENING_RANGE = (0.02, 0.05)  # lip gap in face widths: the tongue only shows through an open mouth
 
 ROWS, COLS = 4, 3  # vertices along and across the tongue
 _v, _u = np.meshgrid(np.linspace(0, 1, ROWS), np.linspace(-1, 1, COLS), indexing="ij")
@@ -90,9 +102,42 @@ def _ramp(value, lo, hi):
     return float(np.clip((value - lo) / (hi - lo), 0, 1))
 
 
-def blep(scores: dict) -> float:
-    """How far out your tongue is (0..1) from the face blendshape scores."""
-    return _ramp(scores.get("tongueOut", 0.0), *TONGUE_RANGE)
+def seen(frame: np.ndarray, face: np.ndarray) -> float:
+    """How far out your tongue is (0..1), seen in the webcam frame (BGR) with
+    your face landmarks (478, 2+) in its px: how much of the opening between
+    your lips is filled with tongue, through how far open the mouth is."""
+    h, w = frame.shape[:2]
+    face_width = np.ptp(face[:, 0])
+    upper, lower = face[UPPER_INNER_LIP, :2], face[LOWER_INNER_LIP, :2]
+    gap = float(np.mean(lower[1:-1, 1] - upper[1:-1, 1])) / max(face_width, 1e-6)
+    opening = _ramp(gap, *OPENING_RANGE)
+    if opening <= 0:
+        return 0.0
+    polygon = np.vstack([upper, lower[::-1]])
+    x0, y0 = np.clip(np.floor(polygon.min(axis=0)).astype(int), 0, (w - 1, h - 1))
+    x1, y1 = np.clip(np.ceil(polygon.max(axis=0)).astype(int) + 1, 1, (w, h))
+    if x1 <= x0 + 1 or y1 <= y0 + 1:
+        return 0.0
+    mask = np.zeros((y1 - y0, x1 - x0), np.uint8)
+    cv2.fillPoly(mask, [np.round(polygon - (x0, y0)).astype(np.int32)], 1)
+    if mask.sum() < 4:
+        return 0.0
+    hsv = cv2.cvtColor(np.ascontiguousarray(frame[y0:y1, x0:x1]), cv2.COLOR_BGR2HSV)
+    hue, sat, val = (hsv[..., i][mask > 0].astype(int) for i in range(3))
+    skin = _cheek_brightness(frame, face)
+    tongue = ((hue <= TONGUE_HUE[0]) | (hue >= TONGUE_HUE[1])) & (sat >= TONGUE_SATURATION) \
+        & (val >= TONGUE_BRIGHTNESS * skin)
+    return _ramp(tongue.mean(), *FILLED_RANGE) * opening
+
+
+def _cheek_brightness(frame: np.ndarray, face: np.ndarray) -> float:
+    """Median brightness (HSV value, 0..255) of small patches on the cheeks."""
+    h, w = frame.shape[:2]
+    patches = []
+    for x, y in face[CHEEKS, :2].astype(int):
+        if 2 <= x < w - 2 and 2 <= y < h - 2:
+            patches.append(frame[y - 2:y + 3, x - 2:x + 3].reshape(-1, 3).max(axis=1))
+    return float(np.median(np.concatenate(patches))) if patches else 255.0
 
 
 def shape(lips: np.ndarray, gap: float, mouth_width: float, face_width: float, amount: float) -> np.ndarray:

@@ -37,7 +37,7 @@ from catcam.paws import Paws, paw_set, paw_style
 from catcam.picker import SIZE as PREVIEW_SIZE
 from catcam.picker import Picker, put_text
 from catcam.tail import TAIL_HAND, Tail, TailSkin, tail_skin
-from catcam.tongue import blep
+from catcam.tongue import seen
 
 OUT_W, OUT_H, FPS = 1280, 720, 30
 WINDOW = "Cat Cam"
@@ -48,7 +48,7 @@ TAIL_LABEL = "Tail (t)"
 
 EXPRESSION_GAIN = 1.3  # exaggerate your expressions on the cat (1 = 1:1)
 BLINK_SMOOTHING = 0.7  # 0..1, higher = snappier; kept snappy so blinks show
-TONGUE_SMOOTHING = 0.3  # 0..1 per frame; the tongue slides out and back in
+TONGUE_SMOOTHING = 0.2  # 0..1 per frame: the tongue slides out and in; a one-frame glitch barely shows
 # One Euro filters: lower MIN_CUTOFF = less jitter when still, higher BETA =
 # less lag when moving fast. Expression speeds are in face widths per second.
 ROTATION_MIN_CUTOFF, ROTATION_BETA = 0.8, 3.5
@@ -63,8 +63,8 @@ SHUT_RANGE = (0.35, 0.75)
 EXPRESSIVE = [
     "jawOpen", "mouthSmileLeft", "mouthSmileRight", "mouthPucker", "mouthFunnel",
     "mouthStretchLeft", "mouthStretchRight", "browInnerUp", "browOuterUpLeft",
-    "browOuterUpRight", "eyeBlinkLeft", "eyeBlinkRight", "cheekPuff", "tongueOut",
-]
+    "browOuterUpRight", "eyeBlinkLeft", "eyeBlinkRight", "cheekPuff",
+]  # ...and while no tongue is seen
 RELAXED_BELOW = 0.25
 NO_FACE_HINT_AFTER = 1.0  # s without a face before the preview says so
 WEBCAM_TIMEOUT = 5.0  # s of failed webcam reads before giving up
@@ -169,7 +169,9 @@ class FaceState:
     def _slide_tongue(self):
         self.tongue += TONGUE_SMOOTHING * (self.tongue_seen - self.tongue)
 
-    def update(self, result, cam_size, dt: float, now: float):
+    def update(self, result, cam_size, dt: float, now: float, frame: np.ndarray | None = None):
+        """result: the face landmarker's; frame: the webcam picture (BGR) it
+        came from, for what the landmarks alone don't tell (the tongue)."""
         if not result.face_landmarks:  # no face -> keep the last pose and expression
             self.ears = self.ear_motion.update(None, dt, now)
             self._slide_tongue()
@@ -186,9 +188,10 @@ class FaceState:
         self.ears = self.ear_motion.update(scores, dt, now)
         closed = blinks(scores, self.face, self.transfer.neutral)
         self.blink = self.blink + BLINK_SMOOTHING * (closed - self.blink)
-        self.tongue_seen = blep(scores)
+        if frame is not None:  # the face model has no tongue score: look for the tongue itself
+            self.tongue_seen = seen(frame, self.face)
         self._slide_tongue()
-        relaxed = max(scores.get(name, 0.0) for name in EXPRESSIVE) < RELAXED_BELOW
+        relaxed = max(scores[name] for name in EXPRESSIVE) < RELAXED_BELOW and self.tongue_seen < 0.1
         self.offsets = self.expression_filter(EXPRESSION_GAIN * self.transfer(self.face, relaxed), dt)
 
 
@@ -393,7 +396,7 @@ def stream(cats: list[Cat], controls: Controls, effects: Effects, trackers, vcam
         cam_size = (frame.shape[1], frame.shape[0])
         image = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         timestamp = int((now - start) * 1000)
-        state.update(face_tracker.detect_for_video(image, timestamp), cam_size, dt, now)
+        state.update(face_tracker.detect_for_video(image, timestamp), cam_size, dt, now, frame)
         hands = hand_tracker.detect_for_video(image, timestamp)
         cat = cats[controls.current]
         paws.update(hands, state.face, cam_size, dt, *cat.mesh.face_on_screen())

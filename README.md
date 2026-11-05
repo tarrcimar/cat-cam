@@ -165,7 +165,8 @@ These constants sit at the top of their files:
 | `EXPRESSION_MIN_CUTOFF`, `EXPRESSION_BETA` | `catcam/app.py` | face smoothing: lower cutoff means less jitter, higher beta means less lag |
 | `ROTATION_MIN_CUTOFF`, `ROTATION_BETA` | `catcam/app.py` | the same for head movement |
 | `BLINK_RANGE` | `catcam/app.py` | how far you close your eyes before the cat blinks |
-| `TONGUE_RANGE` | `catcam/tongue.py` | how far your tongue must be out before the cat's shows, and when it is fully out |
+| `FILLED_RANGE`, `OPENING_RANGE` | `catcam/tongue.py` | how much of your mouth opening must be tongue, and how far open the mouth must be, before the cat's tongue shows and when it is fully out |
+| `TONGUE_HUE`, `TONGUE_SATURATION`, `TONGUE_BRIGHTNESS` | `catcam/tongue.py` | which colours count as tongue in the webcam picture |
 | `WIDTH`, `LENGTH`, `CURL` | `catcam/tongue.py` | the size of the tongue (in mouth widths) and how much its tip comes toward the viewer |
 | `TONGUE_SMOOTHING` | `catcam/app.py` | how quickly the tongue slides out and back in |
 | `FLATTEN`, `PERK`, `TWITCH_EVERY` | `catcam/ears.py` | how far the ears move, and how often they twitch |
@@ -187,9 +188,11 @@ These constants sit at the top of their files:
    part turned toward or away from the light (`catcam/lighting.py`). The
    mouth's inside and cat teeth are drawn in the gap between the lips,
    coloured to match the cat's lips (`catcam/cat_mesh.py`). When you stick
-   your tongue out (MediaPipe's `tongueOut` score), a tongue hung from the
-   lower lip of the mesh slides out over it, in the same colours
-   (`catcam/tongue.py`).
+   your tongue out, a tongue hung from the lower lip of the mesh slides out
+   over it, in the same colours (`catcam/tongue.py`). The face model has no
+   tongue score, so the tongue is found in the webcam picture instead: how
+   much of the opening between your lips is filled with something bright
+   and red rather than the dark of the mouth or the white of teeth.
 5. Blinks lower the cat's eyelids in its texture (`catcam/cat_face.py`), the
    ears bend about a hinge below their tips (`catcam/ears.py`), and paws are
    drawn where your hands are (`catcam/paws.py`), showing their top or their

@@ -1,7 +1,9 @@
+import cv2
 import numpy as np
 import pytest
 
-from catcam.tongue import CURL, FORWARD, INSET, LENGTH, TONGUE_RANGE, WIDTH, blep, shape
+from catcam.mouth_fit import LOWER_INNER_LIP, UPPER_INNER_LIP
+from catcam.tongue import CHEEKS, CURL, FORWARD, INSET, LENGTH, OPENING_RANGE, WIDTH, seen, shape
 
 MOUTH, FACE = 100.0, 300.0  # px
 
@@ -13,11 +15,56 @@ def _lips(angle=0.0, z=50.0):
     return np.column_stack([150 + c * xs, 200 + s * xs, np.full(11, z)])
 
 
-def test_blep_maps_the_tongue_score():
-    assert blep({}) == 0.0
-    assert blep({"tongueOut": TONGUE_RANGE[0]}) == 0.0
-    assert blep({"tongueOut": np.mean(TONGUE_RANGE)}) == pytest.approx(0.5)
-    assert blep({"tongueOut": 1.0}) == 1.0
+def _webcam(gap: float, inside, skin=(150, 180, 220)):
+    """A face-coloured frame with a 120 px wide mouth opened by `gap` px, filled
+    with the BGR colour `inside`, and the landmarks that go with it."""
+    frame = np.empty((480, 640, 3), np.uint8)
+    frame[:] = skin
+    face = np.zeros((478, 3))
+    face[:, 0] = np.linspace(170, 470, 478)  # 300 px wide
+    face[:, 1] = 240
+    xs = np.linspace(260, 380, 11)
+    bulge = np.sin(np.linspace(0, np.pi, 11))
+    face[UPPER_INNER_LIP, 0] = face[LOWER_INNER_LIP, 0] = xs
+    face[UPPER_INNER_LIP, 1] = 300 - gap / 2 * bulge
+    face[LOWER_INNER_LIP, 1] = 300 + gap / 2 * bulge
+    face[CHEEKS, :2] = [(220, 230), (420, 230), (230, 260), (410, 260), (240, 280), (400, 280)]
+    polygon = np.vstack([face[UPPER_INNER_LIP, :2], face[LOWER_INNER_LIP, :2][::-1]])
+    cv2.fillPoly(frame, [polygon.astype(np.int32)], inside)
+    return frame, face
+
+
+TONGUE_PINK, THROAT, TEETH = (120, 90, 230), (20, 10, 30), (235, 240, 245)
+
+
+def test_a_tongue_is_seen_filling_an_open_mouth():
+    wide = OPENING_RANGE[1] * 300 * 1.5
+    assert seen(*_webcam(wide, TONGUE_PINK)) == 1.0
+    assert seen(*_webcam(wide, THROAT)) == 0.0
+    assert seen(*_webcam(wide, TEETH)) == 0.0
+    # Half open: the tongue is part of the way out.
+    assert 0.0 < seen(*_webcam(np.mean(OPENING_RANGE) * 300, TONGUE_PINK)) < 0.8
+
+
+def test_a_closed_mouth_shows_no_tongue():
+    assert seen(*_webcam(0.0, TONGUE_PINK)) == 0.0
+    assert seen(*_webcam(OPENING_RANGE[0] * 300 * 0.9, TONGUE_PINK)) == 0.0
+
+
+def test_the_tongue_must_be_brighter_than_the_dark_of_the_mouth():
+    wide = OPENING_RANGE[1] * 300 * 1.5
+    dim_red = (20, 15, 60)  # a red but dark inside, as in a shadowed mouth
+    assert seen(*_webcam(wide, dim_red)) == 0.0
+    # ...relative to the skin: in a dark picture the same tongue still counts.
+    assert seen(*_webcam(wide, (40, 30, 90), skin=(50, 60, 80))) == 1.0
+
+
+def test_a_mouth_at_the_edge_of_the_picture_is_fine():
+    frame, face = _webcam(40.0, TONGUE_PINK)
+    face[:, 0] -= 300  # the mouth hangs off the left edge
+    assert 0.0 <= seen(frame, face) <= 1.0
+    face[:, 0] -= 400  # entirely outside
+    assert seen(frame, face) == 0.0
 
 
 def test_tongue_hangs_below_the_middle_of_the_lower_lip():
