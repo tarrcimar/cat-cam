@@ -107,6 +107,28 @@ def test_controls_neutral_and_quit():
     assert controls.quit
 
 
+def test_the_tongue_slides_out_as_far_as_yours():
+    from types import SimpleNamespace
+
+    from catcam.app import FaceState
+
+    state = FaceState()
+    no_face = SimpleNamespace(face_landmarks=[])
+    state.update(no_face, (640, 480), 1 / 30, 0.0)
+    assert state.tongue == 0.0
+    state.tongue_seen = 0.5  # as if your tongue were half out
+    first = None
+    for i in range(30):
+        state.update(no_face, (640, 480), 1 / 30, i / 30)
+        first = state.tongue if first is None else first
+    assert 0 < first < 0.5  # it slides rather than jumps
+    assert state.tongue == pytest.approx(0.5, abs=0.01)
+    state.tongue_seen = 0.0  # ...and back in
+    for i in range(30):
+        state.update(no_face, (640, 480), 1 / 30, 1 + i / 30)
+    assert state.tongue < 0.01
+
+
 def test_window_closed_when_opencv_says_it_is_gone(monkeypatch):
     def gone(*args):
         raise cv2.error("NULL window")

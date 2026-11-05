@@ -2,7 +2,8 @@
 
 Be a cat in your Zoom calls. Pick one of seven cats; it turns, nods and tilts
 with your head, copies your whole face (brows, blinks, cheeks, smile, open
-mouth with fangs) and your hands become its paws: the top of the paw when
+mouth with fangs, and a blep when you stick your tongue out) and your hands
+become its paws: the top of the paw when
 you show the back of your hand, the soft toe beans when you show your palm. Its ears perk up when you raise
 your brows, flatten when you frown, and twitch now and then, and the side of
 its head that turns away from the light falls into shadow.
@@ -13,6 +14,8 @@ virtual camera, and everything runs locally on your computer.
 ![The cat picker](docs/picker.jpg)
 
 ![Rest, smile, and a smile with the head turned](docs/expressions.jpg)
+
+![Every cat with its tongue in, a little out, fully out, with the mouth open, and with the head turned and tilted](docs/blep.jpg)
 
 ## Easy install (Mac with Apple Silicon)
 
@@ -90,6 +93,9 @@ how it looks at the start, and the way you sit at the start counts as "looking
 at the viewer". If the cat looks grumpy or turned while you are relaxed, press
 `n`.
 
+Stick your tongue out and the cat does a blep: its tongue slides out over its
+lower lip, as far as yours is out, and back in when yours goes back in.
+
 Raise your hands into the camera's view for paws. Turn a hand around to
 show the other side of the paw, and make a fist to curl its toes in.
 Tick **Tail** in the top left corner of the window (or press `t`) and your
@@ -159,6 +165,9 @@ These constants sit at the top of their files:
 | `EXPRESSION_MIN_CUTOFF`, `EXPRESSION_BETA` | `catcam/app.py` | face smoothing: lower cutoff means less jitter, higher beta means less lag |
 | `ROTATION_MIN_CUTOFF`, `ROTATION_BETA` | `catcam/app.py` | the same for head movement |
 | `BLINK_RANGE` | `catcam/app.py` | how far you close your eyes before the cat blinks |
+| `TONGUE_RANGE` | `catcam/tongue.py` | how far your tongue must be out before the cat's shows, and when it is fully out |
+| `WIDTH`, `LENGTH`, `CURL` | `catcam/tongue.py` | the size of the tongue (in mouth widths) and how much its tip comes toward the viewer |
+| `TONGUE_SMOOTHING` | `catcam/app.py` | how quickly the tongue slides out and back in |
 | `FLATTEN`, `PERK`, `TWITCH_EVERY` | `catcam/ears.py` | how far the ears move, and how often they twitch |
 | `STRENGTH`, `LIGHT` | `catcam/lighting.py` | how much turning the head changes its shading, and where the light comes from |
 | `PAW_SIZE` | `catcam/paws.py` | paw size relative to your hand |
@@ -177,7 +186,10 @@ These constants sit at the top of their files:
    rotated by your head pose and drawn with OpenGL, shaded by how much each
    part turned toward or away from the light (`catcam/lighting.py`). The
    mouth's inside and cat teeth are drawn in the gap between the lips,
-   coloured to match the cat's lips (`catcam/cat_mesh.py`).
+   coloured to match the cat's lips (`catcam/cat_mesh.py`). When you stick
+   your tongue out (MediaPipe's `tongueOut` score), a tongue hung from the
+   lower lip of the mesh slides out over it, in the same colours
+   (`catcam/tongue.py`).
 5. Blinks lower the cat's eyelids in its texture (`catcam/cat_face.py`), the
    ears bend about a hinge below their tips (`catcam/ears.py`), and paws are
    drawn where your hands are (`catcam/paws.py`), showing their top or their
@@ -211,6 +223,7 @@ catcam/
   cats.py          finding and loading prepared cats
   cat_mesh.py      the 3D head mesh and its OpenGL rendering
   cat_face.py      eyelids
+  tongue.py        the tongue that comes out when yours does (a blep)
   ears.py          ear movement
   lighting.py      shading as the head turns
   face_motion.py   expression transfer

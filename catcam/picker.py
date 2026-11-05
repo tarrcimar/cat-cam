@@ -123,6 +123,6 @@ class Picker:
                 cv2.circle(card, (w - 16, 16), 6, (90, 200, 90), -1, cv2.LINE_AA)
             _blend(canvas, card, self.mask, x, y)
 
-        put_text(canvas, "In the call: c = change cat   n = reset neutral face   q = quit",
+        put_text(canvas, "In the call: c = change cat   t = tail   n = reset neutral face   q = quit",
                  width / 2, height - 16, 0.45, MUTED)
         return canvas

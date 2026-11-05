@@ -4,8 +4,9 @@ Vertices are the cat's 478 face landmarks (with depth), points along the cat's
 outline and a grid of "skull" points filling the fur in between. Face
 vertices are moved by your expression each frame, the whole head rotates with
 yours, and the gap between the lips is filled with a drawn mouth (teeth, dark
-inside, tongue). The texture is the cat sprite, so at rest the mesh reproduces
-the photo.
+inside, tongue). When you stick your tongue out, a tongue hangs out over the
+lower lip (see catcam.tongue). The texture is the cat sprite, so at rest the
+mesh reproduces the photo.
 
 Sizes are in face widths, so any sprite resolution behaves the same.
 """
@@ -15,6 +16,7 @@ import moderngl
 import numpy as np
 from scipy.spatial import Delaunay
 
+from catcam import tongue as blep
 from catcam.cat_face import EYES
 from catcam.ears import bend, find_ears
 from catcam.lighting import shading, vertex_normals
@@ -61,6 +63,7 @@ SMOOTHING = 0.035  # face widths
 
 # Outer and inner lip points whose midpoints lie on the lips.
 LIP_SAMPLES = [(0, 13), (17, 14), (39, 81), (269, 311), (84, 87), (314, 317)]
+FACING_VIEWER = np.array([[0.0, 0.0, -1.0]])  # the normal of a tongue hanging out, unrotated
 
 FACE_VERTEX_SHADER = """
 #version 330
@@ -395,6 +398,9 @@ class Renderer:
         self.mouth_prog = self.ctx.program(
             vertex_shader=MOUTH_VERTEX_SHADER, fragment_shader=MOUTH_FRAGMENT_SHADER
         )
+        self.tongue_prog = self.ctx.program(
+            vertex_shader=blep.VERTEX_SHADER, fragment_shader=blep.FRAGMENT_SHADER
+        )
         size = (self.out_w, self.out_h)
         self.msaa = self.ctx.framebuffer(
             color_attachments=[self.ctx.renderbuffer(size, 4, samples=MSAA_SAMPLES)],
@@ -469,6 +475,13 @@ class CatMesh:
              (self.shade_vbo, "1f", "in_shade")],
             ctx.buffer(_mouth_triangles().astype("i4").tobytes()),
         )
+        self.tongue_vbo = ctx.buffer(reserve=len(blep.GRID) * 3 * 4, dynamic=True)
+        self.tongue_vao = ctx.vertex_array(
+            renderer.tongue_prog,
+            [(self.tongue_vbo, "3f", "in_pos"),
+             (ctx.buffer(blep.GRID.astype("f4").tobytes()), "2f", "in_uv")],
+            ctx.buffer(blep.TRIANGLES.astype("i4").tobytes()),
+        )
 
         self.texture = ctx.texture((tex_w, tex_h), 4)
         self.texture.filter = (moderngl.LINEAR_MIPMAP_LINEAR, moderngl.LINEAR)
@@ -524,10 +537,25 @@ class CatMesh:
         # A point one face width deeper moves by rotation[:2, 2] (image x, y).
         prog["turn"].value = tuple(float(v) for v in rotation[:2, 2])
 
+    def _draw_tongue(self, shaped: np.ndarray, rotation: np.ndarray, amount: float):
+        """The tongue hanging `amount` (0..1) out of the shaped mouth, drawn
+        over the face (so it must come after it)."""
+        gap = float(shaped[14, 1] - shaped[13, 1])
+        mouth_width = self.mouth_size * self.face_width
+        vertices = blep.shape(shaped[LOWER_INNER_LIP], gap, mouth_width, self.face_width, amount)
+        self.tongue_vbo.write(self._project(vertices, rotation).tobytes())
+        prog = self.renderer.tongue_prog
+        prog["size"].value = (blep.WIDTH / 2, amount * blep.LENGTH)
+        prog["lip_tint"].value = tuple(float(v) for v in self.lip_tint)
+        prog["shade"].value = float(shading(FACING_VIEWER, rotation)[0])
+        prog["lip_shadow"].value = float(np.clip(1 - gap / (blep.LIP_SHADOW * mouth_width), 0, 1))
+        self.tongue_vao.render()
+
     def render(self, sprite: np.ndarray, offsets: np.ndarray, rotation: np.ndarray,
-               ears=(0.0, 0.0)) -> np.ndarray:
-        """Draw the cat with face offsets (478, 3), head rotation and ear angles
-        (radians, image-left and image-right ear, positive = flattened); returns BGR."""
+               ears=(0.0, 0.0), tongue: float = 0.0) -> np.ndarray:
+        """Draw the cat with face offsets (478, 3), head rotation, ear angles
+        (radians, image-left and image-right ear, positive = flattened) and how
+        far its tongue is out (0..1); returns BGR."""
         if sprite is not self._uploaded:  # unchanged while the eyes are open
             self.texture.write(np.ascontiguousarray(sprite).tobytes())
             self.texture.build_mipmaps()
@@ -544,6 +572,8 @@ class CatMesh:
         self.mouth_vao.render()
         self.texture.use(0)
         self.face_vao.render()
+        if tongue > 0.01:
+            self._draw_tongue(shaped, rotation, tongue)
         r.ctx.copy_framebuffer(r.resolved, r.msaa)
 
         data = r.resolved.read(components=3)

@@ -1,14 +1,14 @@
 """Cat face filter for Zoom.
 
 Pick a cat, then it copies you live: it turns, nods and tilts with your head,
-copies your whole face (brows, eyes, cheeks, lips, jaw) and your hands become
-paws. Only the rendered cat goes out to the virtual camera; no webcam pixels
-are ever sent, so your face is never visible.
+copies your whole face (brows, eyes, cheeks, lips, jaw, tongue) and your hands
+become paws. Only the rendered cat goes out to the virtual camera; no webcam
+pixels are ever sent, so your face is never visible.
 
 Run:  uv run cat-cam      then pick "OBS Virtual Camera" in Zoom.
       uv run cat-cam --camera 1   to use another webcam.
 Keys in the preview window: c = change cat, n = "this is my neutral face"
-(recalibrate), q = quit.
+(recalibrate), t = tail, q = quit.
 """
 
 import argparse
@@ -37,6 +37,7 @@ from catcam.paws import Paws, paw_set, paw_style
 from catcam.picker import SIZE as PREVIEW_SIZE
 from catcam.picker import Picker, put_text
 from catcam.tail import TAIL_HAND, Tail, TailSkin, tail_skin
+from catcam.tongue import blep
 
 OUT_W, OUT_H, FPS = 1280, 720, 30
 WINDOW = "Cat Cam"
@@ -47,6 +48,7 @@ TAIL_LABEL = "Tail (t)"
 
 EXPRESSION_GAIN = 1.3  # exaggerate your expressions on the cat (1 = 1:1)
 BLINK_SMOOTHING = 0.7  # 0..1, higher = snappier; kept snappy so blinks show
+TONGUE_SMOOTHING = 0.3  # 0..1 per frame; the tongue slides out and back in
 # One Euro filters: lower MIN_CUTOFF = less jitter when still, higher BETA =
 # less lag when moving fast. Expression speeds are in face widths per second.
 ROTATION_MIN_CUTOFF, ROTATION_BETA = 0.8, 3.5
@@ -61,7 +63,7 @@ SHUT_RANGE = (0.35, 0.75)
 EXPRESSIVE = [
     "jawOpen", "mouthSmileLeft", "mouthSmileRight", "mouthPucker", "mouthFunnel",
     "mouthStretchLeft", "mouthStretchRight", "browInnerUp", "browOuterUpLeft",
-    "browOuterUpRight", "eyeBlinkLeft", "eyeBlinkRight", "cheekPuff",
+    "browOuterUpRight", "eyeBlinkLeft", "eyeBlinkRight", "cheekPuff", "tongueOut",
 ]
 RELAXED_BELOW = 0.25
 NO_FACE_HINT_AFTER = 1.0  # s without a face before the preview says so
@@ -153,6 +155,8 @@ class FaceState:
         self.blink = np.zeros(2)
         self.ear_motion = EarMotion()
         self.ears = np.zeros(2)  # ear angles, see catcam.ears
+        self.tongue = 0.0  # 0..1 how far the cat's tongue is out, see catcam.tongue
+        self.tongue_seen = 0.0  # ...as your face last asked for
         self.offsets = np.zeros((478, 3))  # in face widths
         self.face = None  # last seen face landmarks in px
         self.last_seen = None
@@ -162,9 +166,13 @@ class FaceState:
         self.transfer.reset()
         self.neutral_pose = None
 
+    def _slide_tongue(self):
+        self.tongue += TONGUE_SMOOTHING * (self.tongue_seen - self.tongue)
+
     def update(self, result, cam_size, dt: float, now: float):
         if not result.face_landmarks:  # no face -> keep the last pose and expression
             self.ears = self.ear_motion.update(None, dt, now)
+            self._slide_tongue()
             return
         self.face = landmarks_px(result.face_landmarks[0], *cam_size)
         self.last_seen = now
@@ -178,7 +186,9 @@ class FaceState:
         self.ears = self.ear_motion.update(scores, dt, now)
         closed = blinks(scores, self.face, self.transfer.neutral)
         self.blink = self.blink + BLINK_SMOOTHING * (closed - self.blink)
-        relaxed = max(scores[name] for name in EXPRESSIVE) < RELAXED_BELOW
+        self.tongue_seen = blep(scores)
+        self._slide_tongue()
+        relaxed = max(scores.get(name, 0.0) for name in EXPRESSIVE) < RELAXED_BELOW
         self.offsets = self.expression_filter(EXPRESSION_GAIN * self.transfer(self.face, relaxed), dt)
 
 
@@ -187,7 +197,7 @@ def render(cat: Cat, state: FaceState, paws: Paws, tail: Tail, tail_on: bool) ->
     moment after it is switched off) instead of a paw."""
     sprite = cat.eyelids.render(blink=tuple(state.blink))
     offsets = state.transfer.to_cat(state.offsets, cat.points)
-    frame = cat.mesh.render(sprite, offsets, to_matrix(state.head), state.ears)
+    frame = cat.mesh.render(sprite, offsets, to_matrix(state.head), state.ears, state.tongue)
     if cat.tail is None:
         return paws.draw(frame, cat.paw)
     hidden = (TAIL_HAND,) if tail_on else ()

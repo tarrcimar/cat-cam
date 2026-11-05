@@ -34,6 +34,7 @@ USE
   turned while you are relaxed, press N.
 - Raise your hands into view for paws. Tick "Tail" in the top left corner
   of the Cat Cam window (or press T) and your right hand lifts a tail.
+- Stick your tongue out and the cat does too.
 - In the Cat Cam window: C picks another cat, Q quits.
 
 TROUBLE?
