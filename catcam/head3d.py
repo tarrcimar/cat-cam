@@ -69,11 +69,23 @@ MOUTH_BOX = 0.3  # how far round the jaw (shares of its size on screen) the head
 # the teeth, where the palate is), how far down its floor is with the mouth closed, ...
 OWN_CAVITY = ((0.0, -0.03, -0.45), (0.75, 0.12, 0.6))
 OWN_FLOOR = 0.4
-OWN_LINING = (0.5, 0.15, 0.18)  # ...the RGB (0..1) of its lining where lit, tinted by the lip colour...
-OWN_THROAT = (0.1, 0.02, 0.03)  # ...and of its throat
+OWN_LINING = (0.8, 0.52, 0.56)  # ...the RGB (0..1) of its lining, dusky pink, tinted by the lip colour...
+OWN_THROAT = (0.42, 0.2, 0.25)  # ...and of its throat, a deeper red (the light falling off does the rest)...
+OWN_THROAT_DEPTH = 3.0  # ...which goes on down this much further back (mouth widths), so is lit as that deep
 LINING_TINT = 0.5  # how much of the lip colour the lining takes on (like the gums, tools/mouth_model.py)
-LIPS_SHADOW = 0.12  # mouth widths: how far inside the lips their shadow reaches
+LIPS_SHADOW = 0.08  # mouth widths: how far inside the lips the dark line where they meet the mouth reaches
 PIGMENT = {"dog": 0.45}  # how much of the lining is blotched dark, by animal (cats: none)
+# How the inside of the mouth (the cavity, teeth, gums and tongue alike, see MOUTH_LIGHT)
+# is lit, to match the soft photo light baked into the heads: mostly light from all round
+# that only gets in through the opening between the lips, so it falls off deeper inside
+# and under the lips, plus a little of the head's own light (catcam.lighting) where it
+# shines in through the opening.
+INSIDE_OPENING = 0.4  # mouth widths: half the width of the opening the light gets in through
+INSIDE_AMBIENT = 1.3  # brightness of a wall that sees all the light getting in from all round...
+INSIDE_BOUNCE = 0.3  # ...the share of that reaching even the deepest corners, off the lining...
+INSIDE_BOUNCE_GAPE = 0.3  # ...once the lips are this far apart (mouth widths; less gets in before)...
+INSIDE_KEY = 0.25  # ...and of one lit square on by the head's light through the opening
+INSIDE_SHEEN = 0.15  # how bright the wet glints are where that light glances back off it
 LID_REACH = 2  # portrait px: texels sampled this close to where the lids are drawn take part in blinks
 
 # The head is shaped here, on the GPU, as Head3D._shape does it on the CPU: with a few
@@ -159,25 +171,71 @@ bool in_opening(vec2 p) {
     return inside;
 }
 """
+# How light gets into the mouth, for the cavity and the teeth, gums and tongue alike: the
+# light from all round reaches a point inside only through the opening between the lips,
+# as much as it sees of it (the solid angle of the opening, taken as a rectangle in the
+# lips' plane in the mouth frame, from the upper lip down to the lower), so it falls off
+# with depth, into the throat, the back corners and under the lips. Some of it, bounced
+# off the walls and through the flesh, reaches everywhere, red with the lining's colour,
+# as in a real mouth, whose shadows deepen into red rather than grey. The head's light
+# lights what it reaches through the opening and glints off it, wet.
+MOUTH_LIGHT = """
+uniform mat4 to_mouth;    // camera space -> mouth frame (mouth widths, see catcam.mouth3d)
+uniform float gape;       // mouth widths: how far the jaw's front dropped
+uniform vec3 key;         // toward the head's light (camera space, catcam.lighting)
+uniform float opening_half;  // mouth widths: half the opening's width (INSIDE_OPENING)
+uniform vec4 inside_light;   // INSIDE_AMBIENT, INSIDE_KEY, INSIDE_SHEEN, INSIDE_BOUNCE
+uniform vec3 bounce;         // RGB: the colour of the light bounced off the lining
+uniform float bounce_gape;   // mouth widths: INSIDE_BOUNCE_GAPE
+// One corner's share of the solid angle a rectangle is seen in, d in front of it.
+float corner(vec2 c, float d) {
+    return atan(c.x * c.y, d * sqrt(dot(c, c) + d * d));
+}
+// The light (RGB) at q (mouth frame) on a surface facing n (both in the mouth frame), and
+// its wet glint (to be added) seen from the camera.
+vec4 mouth_light(vec3 q, vec3 n) {
+    float d = max(-q.z, 0.005);
+    float open = max(gape, 0.03);
+    vec2 lo = vec2(-opening_half, -open) - q.xy, hi = vec2(opening_half, 0.0) - q.xy;
+    float seen = (corner(hi, d) - corner(vec2(lo.x, hi.y), d) - corner(vec2(hi.x, lo.y), d)
+                  + corner(lo, d)) / 6.2831853;  // of all round; at most half, right at the lips
+    vec3 to_gap = normalize(vec3(-q.x, -0.5 * open - q.y, d));
+    float facing = 0.35 + 0.65 * max(dot(n, to_gap), 0.0);
+    float direct = pow(min(2.0 * seen, 1.0), 0.4) * facing;
+    float bounced = inside_light.w * min(open / bounce_gape, 1.0);  // as much as gets in
+    vec3 lit = inside_light.x * ((1.0 - inside_light.w) * direct + bounced * bounce);
+    // The head's light, where its ray from q leaves through the opening (soft edged, the
+    // further away the softer).
+    vec3 l = normalize(mat3(to_mouth) * key);
+    float t = d / max(l.z, 0.05);
+    vec2 at = q.xy + t * l.xy;
+    float inside = min(min(at.x + opening_half, opening_half - at.x), min(at.y + open, -at.y));
+    float soft = 0.02 + 0.1 * t;
+    float through = smoothstep(-soft, soft, inside);
+    lit += inside_light.y * through * max(dot(n, l), 0.0);
+    vec3 v = normalize((to_mouth * vec4(0.0, 0.0, 0.0, 1.0)).xyz - q);
+    float glint = inside_light.z * through * pow(max(dot(n, normalize(l + v)), 0.0), 120.0);
+    return vec4(lit, glint);
+}
+"""
 # A head's own inside, seen between its parted lips, is drawn as the mouth cavity behind
 # them: the view ray through each pixel is followed into an egg-shaped hollow in the mouth
 # frame (OWN_CAVITY; its lower half deepens as the jaw drops) and coloured where it hits
-# its far wall: a wet, faintly mottled lining (palate ridges on its roof), darkening into
-# the throat at the back and in the lips' shadow next to them. Only a backdrop: it is
-# never drawn outside the head's own inside, and the teeth and tongue go in front.
+# its far wall, lit as MOUTH_LIGHT says: a pink lining with the palate's ridges across its
+# roof and fine folds down the cheeks, a deeper red, smooth throat at the back, darker
+# below where the tongue shades it. Only a backdrop: it is never drawn outside the head's
+# own inside, and the teeth and tongue go in front.
 CAVITY_SHADING = """
-uniform mat4 to_mouth;    // camera space -> mouth frame (mouth widths, see catcam.mouth3d)
 uniform vec2 focal;       // the projection's x and y scale
 uniform vec2 screen;      // px
 uniform vec3 cavity_centre;  // the cavity (mouth frame)...
 uniform vec3 cavity_radii;   // ...its y: up to the roof...
-uniform float cavity_floor;  // ...down to the floor with the mouth closed...
-uniform float gape;          // ...and further, as the jaw drops
-uniform float rim;        // px: how far inside the lips their shadow reaches
-uniform vec3 lining;      // RGB: the lit lining...
+uniform float cavity_floor;  // ...and down to the floor with the mouth closed (further as the jaw drops)
+uniform float rim;        // px: how far inside the lips the dark line where they meet the mouth reaches
+uniform vec3 lining;      // RGB: the lining...
 uniform vec3 throat;      // ...and the throat
 uniform float pigment;    // how much the lining is blotched dark (a dog's)
-const vec3 TO_LIGHT = vec3(0.2, 0.4, 1.0);  // camera space, as for the teeth
+uniform float throat_depth;  // mouth widths: how much further back the throat goes
 
 float hash(vec3 p) {
     p = fract(p * 0.3183099 + 0.1) * 17.0;
@@ -222,31 +280,35 @@ vec3 cavity(vec2 p, bool gap) {
             break;
         }
     }
-    // Deep at the back (u.z = -1), halfway down, the throat (more of it as the jaw drops);
-    // the roof, cheeks and floor round it are lit.
-    float throat_y = cavity_centre.y - 0.2 - 0.5 * gape;
-    float deep = smoothstep(0.5, 0.95, -u.z) * exp(-pow((q.y - throat_y) / (0.25 + 0.5 * gape), 2.0)
-                                                  - pow(u.x / 0.6, 2.0));
-    vec3 c = mix(lining, throat, deep);
-    float lit = 0.6 + 0.4 * max(dot(n, normalize(mat3(to_mouth) * TO_LIGHT)), 0.0);
-    lit *= mix(0.45, 1.0, smoothstep(-0.9, -0.1, u.y));  // the floor, in the tongue's shadow
-    // The palate's ridges, arching across the roof behind the teeth.
-    float roof = smoothstep(0.15, 0.55, u.y) * smoothstep(-1.0, -0.4, q.z);
-    lit *= 1.0 + 0.2 * roof * smoothstep(0.2, 0.9, sin(q.z * 55.0 + 30.0 * q.x * q.x));
-    // A soft mottle, and a dog's dark patches (turned off the grid the noise is made on).
+    // Turned off the grid the noise is made on, so it shows no rows.
     vec3 m = mat3(0.8, 0.36, -0.48, -0.6, 0.48, -0.64, 0.0, 0.8, 0.6) * q;
-    float coarse = noise(m * 9.0), fine = noise(m * 31.0);
-    lit *= 0.86 + 0.18 * coarse + 0.1 * fine;
+    float coarse = noise(m * 9.0), fine = noise(m * 37.0);
+    vec3 c = lining * (0.9 + 0.14 * coarse + 0.06 * fine);
+    // The palate's ridges, arching back across the roof from behind the teeth to the soft
+    // palate: pale crests, darker furrows, and the seam down its middle.
+    float roof = smoothstep(0.2, 0.6, u.y) * smoothstep(-0.7, -0.5, q.z) * smoothstep(0.75, 0.4, abs(u.x));
+    float ridge = sin((q.z + 1.2 * q.x * q.x) * 80.0);
+    c *= 1.0 + roof * (0.22 * smoothstep(0.2, 0.9, ridge) - 0.2 * smoothstep(0.2, 0.9, -ridge)
+                       - 0.18 * (1.0 - smoothstep(0.0, 0.02, abs(q.x))));
+    // The cheeks' lining runs back from the mouth's corners in fine folds.
+    float cheek = smoothstep(0.5, 0.85, abs(u.x));
+    float fold = sin(q.y * 110.0 + 9.0 * noise(vec3(q.x * 6.0, q.y * 7.0, q.z * 12.0)));
+    c *= 1.0 - 0.08 * cheek * smoothstep(0.7, 1.0, fold) * noise(q * 14.0);
+    // Deep at the back (u.z = -1), halfway down, the throat (more of it as the jaw drops).
+    float throat_y = cavity_centre.y - 0.2 - 0.5 * gape;
+    float deep = smoothstep(0.45, 0.95, -u.z) * exp(-pow((q.y - throat_y) / (0.3 + 0.5 * gape), 2.0)
+                                                   - pow(u.x / 0.6, 2.0));
+    c = mix(c, throat, deep);
     c = mix(c, c * 0.3, pigment * smoothstep(0.5, 0.7, noise(m * 4.0 + 7.0)));
-    // Wet: a sheen where the light glances back off it and where the walls are seen
-    // edge on, broken up as a real one is.
-    vec3 v = -normalize(d);
-    vec3 h = normalize(normalize(mat3(to_mouth) * TO_LIGHT) + v);
-    float glance = pow(1.0 - max(dot(n, v), 0.0), 3.0);
-    float wet = (pow(max(dot(n, h), 0.0), 24.0) + 0.6 * glance) * (0.3 + 0.7 * fine) * (1.0 - deep);
-    // The lips shade what is right behind them; back faces round them are in their shadow.
-    float shadow = gap ? mix(0.35, 1.0, smoothstep(0.0, rim, to_lips(p))) : 0.35;
-    return (c * lit + 0.35 * wet) * shadow;
+    // The lining is soft and a little uneven, which breaks up its light and its wet glints.
+    vec3 bump = vec3(noise(m * 70.0), noise(m * 70.0 + 17.0), noise(m * 70.0 + 31.0)) - 0.5;
+    // The throat goes on down beyond the cavity: lit as if that much deeper.
+    vec4 lighting = mouth_light(q - vec3(0.0, 0.0, throat_depth * deep), normalize(n + 0.5 * bump));
+    vec3 lit = lighting.rgb * mix(0.5, 1.0, smoothstep(-0.9, -0.1, u.y));  // the floor, in the tongue's shade
+    float glint = lighting.a * (1.0 - deep);
+    // A dark line where the lips meet the mouth; back faces round them are in their shadow.
+    float shadow = gap ? mix(0.4, 1.0, smoothstep(0.0, rim, to_lips(p))) : 0.35;
+    return (c * lit + glint) * shadow;
 }
 """
 FRAGMENT_SHADER = """
@@ -260,7 +322,7 @@ uniform bool outside_only;  // drawing the skin's depth: the opening between the
 in vec2 uv;
 in float shade;
 out vec4 color;
-""" + IN_OPENING + CAVITY_SHADING + """
+""" + IN_OPENING + MOUTH_LIGHT + CAVITY_SHADING + """
 void main() {
     gl_FragDepth = gl_FragCoord.z;
     vec2 p = gl_FragCoord.xy;
@@ -282,7 +344,8 @@ void main() {
 }
 """
 # The mouth parts (catcam.mouth3d): the jaw half swings about the hinge, the rest
-# moves with the upper lip; lit by a light from the camera's side, darker deep inside.
+# moves with the upper lip; lit as the cavity behind them is (MOUTH_LIGHT), on top of the
+# shadows the model has baked in where its parts shade each other.
 MOUTH_VERTEX_SHADER = """
 #version 330
 uniform mat4 proj;
@@ -297,11 +360,13 @@ in float in_jaw;
 in float in_light;
 out vec3 colour;
 out vec3 normal;
+out vec3 eye;  // camera space
 out float light;
 void main() {
     vec3 p = mix((skull * vec4(in_pos, 1.0)).xyz, (jaw * vec4(in_pos, 1.0)).xyz, in_jaw);
     vec3 n = mix(mat3(skull) * in_normal, mat3(jaw) * in_normal, in_jaw);
-    gl_Position = proj * vec4(rot * p + shift, 1.0);
+    eye = rot * p + shift;
+    gl_Position = proj * vec4(eye, 1.0);
     normal = rot * n;
     colour = in_colour;
     light = in_light;
@@ -311,11 +376,12 @@ MOUTH_FRAGMENT_SHADER = """
 #version 330
 in vec3 colour;
 in vec3 normal;
+in vec3 eye;
 in float light;
 uniform bool clip;        // only seen through the opening between the lips...
 uniform sampler2D skin;   // ...or else never in front of the head's outside (its depth)
 out vec4 color;
-""" + IN_OPENING + """
+""" + IN_OPENING + MOUTH_LIGHT + """
 void main() {
     // Only seen through the mouth: parts that would poke out through the chin or
     // cheeks (which slope back faster than the mouth inside) stay hidden. A head with
@@ -327,8 +393,9 @@ void main() {
         float outside = texelFetch(skin, ivec2(gl_FragCoord.xy), 0).r;
         if (outside < 1.0 && gl_FragCoord.z < outside) discard;
     }
-    float facing = max(dot(normalize(normal), normalize(vec3(0.2, 0.4, 1.0))), 0.0);
-    color = vec4((colour * light * (0.55 + 0.45 * facing)).bgr, 1.0);  // BGR like the app
+    vec3 n = normalize(mat3(to_mouth) * normal);
+    vec4 lighting = mouth_light((to_mouth * vec4(eye, 1.0)).xyz, gl_FrontFacing ? n : -n);
+    color = vec4((colour * light * lighting.rgb + lighting.a).bgr, 1.0);  // BGR like the app
 }
 """
 
@@ -584,6 +651,14 @@ class Head3D:
         self.mouth_prog = ctx.program(vertex_shader=MOUTH_VERTEX_SHADER,
                                       fragment_shader=MOUTH_FRAGMENT_SHADER)
         self.mouth_prog["clip"].value = not self.own_mouth
+        # The lining of the mouth takes on some of the lips' colour, as the gums do.
+        lining = np.multiply(OWN_LINING, 1 + LINING_TINT * (np.asarray(flat.lip_tint, float) - 1))
+        for prog in (self.prog, self.mouth_prog):  # the inside of the mouth is lit alike (MOUTH_LIGHT)
+            prog["key"].value = tuple(LIGHT @ FLIP)
+            prog["opening_half"].value = INSIDE_OPENING
+            prog["inside_light"].value = (INSIDE_AMBIENT, INSIDE_KEY, INSIDE_SHEEN, INSIDE_BOUNCE)
+            prog["bounce"].value = tuple(lining / lining.max())  # its hue, at full brightness
+            prog["bounce_gape"].value = INSIDE_BOUNCE_GAPE
         if self.own_mouth:  # the depth of the head's outside, for the mouth to stay within
             self.skin = ctx.depth_texture((self.out_w, self.out_h))
             self.skin.compare_func = ""
@@ -591,10 +666,10 @@ class Head3D:
             self.mouth_prog["skin"].value = 1
             self.prog["skin"].value = 1
             self.on_jaw = self._part(np.nonzero(self.jaw_weight[:, 0] > 0.5)[0])
-            # Its inside is the mouth cavity, taking on some of the lips' colour as the gums do.
-            soft = 1 + LINING_TINT * (np.asarray(flat.lip_tint, float) - 1)
-            self.prog["lining"].value = tuple(np.multiply(OWN_LINING, soft))
+            # Its inside is the mouth cavity.
+            self.prog["lining"].value = tuple(lining)
             self.prog["throat"].value = OWN_THROAT
+            self.prog["throat_depth"].value = OWN_THROAT_DEPTH
             self.prog["pigment"].value = PIGMENT.get(animal, 0.0)
             self.prog["cavity_centre"].value, self.prog["cavity_radii"].value = OWN_CAVITY
             self.prog["cavity_floor"].value = OWN_FLOOR
@@ -841,12 +916,15 @@ class Head3D:
         self.mouth_prog["rot"].write(model_rot.astype("f4").T.tobytes())
         self.mouth_prog["skull"].write(skull.astype("f4").T.tobytes())
         self.mouth_prog["jaw"].write(jaw.astype("f4").T.tobytes())
-        if self.own_mouth:  # the cavity it sees its inside as, in the mouth frame
-            view = np.eye(4)
-            view[:3, :3], view[:3, 3] = model_rot.T, -model_rot.T @ self.moved
-            from_skull = np.linalg.inv(skull)
-            self.prog["to_mouth"].write((from_skull @ view).astype("f4").T.tobytes())
-            self.prog["gape"].value = max(-(from_skull @ jaw)[1, 3], 0.0)  # how far the jaw's front dropped
+        # Where the inside of the mouth is, for its light, and the cavity a head with its own
+        # mouth sees its inside as: the mouth frame.
+        view = np.eye(4)
+        view[:3, :3], view[:3, 3] = model_rot.T, -model_rot.T @ self.moved
+        from_skull = np.linalg.inv(skull)
+        gape = max(-(from_skull @ jaw)[1, 3], 0.0)  # how far the jaw's front dropped
+        for prog in (self.prog, self.mouth_prog):
+            prog["to_mouth"].write((from_skull @ view).astype("f4").T.tobytes())
+            prog["gape"].value = gape
         self.mouth_vao.render()
 
     def render(self, sprite: np.ndarray, offsets: np.ndarray, rotation: np.ndarray,
