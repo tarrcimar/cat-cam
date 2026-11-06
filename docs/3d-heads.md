@@ -287,7 +287,10 @@ shipped heads are like that:
   gape of `OWN_GAPE_MAX` mouth widths and `OWN_JAW_MAX`. Everything below the
   lips goes where the jaw takes it, the lower lip no lower: your chin drops
   further than the jaw opens, and skin following it there would tear off
-  the jaw. The upper lip hangs from the nose: as yours rises (opening wide,
+  the jaw. That swing reaches the skin through the jaw weights alone: skin
+  beside the chin that also followed the chin's face points down dropped
+  with the jaw where it should stay, and the fur where it gave way was drawn
+  out into pale streaks. The upper lip hangs from the nose: as yours rises (opening wide,
   smiling), the animal's moves at most `UPPER_LIP_TRAVEL` of its distance
   from the nose, so the opening never rides up into the nose. Toward the mouth corners less and
   less of the jaw swings (`CORNER_START`, `CORNER_DEPTH` in
@@ -295,7 +298,10 @@ shipped heads are like that:
   opening is lens-shaped rather than a slot. Beyond the swing the lower lip
   still does what your lips do (a smile pulls both corners up and out), and
   the two sides of the cut part only as far as the jaw swings, so a smile
-  with the mouth closed shows no crack.
+  with the mouth closed shows no crack. Its rising off the jaw fades out as
+  the mouth opens (`LIP_RISE_OPEN`): your lip corners drop less than your
+  chin, but the animal's lips already meet at their corners, and lifted off
+  the jaw as well, the lower lip drew the fur below it out into streaks.
 - **The lips' edge:** the opening is not the cut's raw zigzag. Each lip's
   edge is a smooth curve fitted to the cut (`OPENING`, `OPENING_SMOOTH` in
   `catcam/head3d.py`), pushed out just far enough to cover the whole gap the

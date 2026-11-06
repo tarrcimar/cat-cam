@@ -63,6 +63,12 @@ OWN_GAPE_MAX = 1.0  # mouth widths: the most its lips part, so a small mouth ope
 UPPER_LIP = UPPER_INNER_LIP + OUTER_LIPS[:11]
 NOSE = [1, 2, 4, 5, 98, 327, 195, 197, 48, 278]  # landmarks around the nose
 UPPER_LIP_TRAVEL = 0.5
+# Beyond the jaw's swing the lower lip still rises with yours (a smile), but less and less
+# as the jaw opens, not at all once it has carried the lips' middle LIP_RISE_OPEN mouth
+# widths down. Your lip corners drop less than your chin does as you open wide: the
+# animal's lips already meet at their corners (head3d_import.corners_together), and
+# lifted off the jaw as well, its lower lip drew the fur below it out into streaks.
+LIP_RISE_OPEN = 0.25
 MOUTH_BOX = 0.3  # how far round the jaw (shares of its size on screen) the head's inside may show
 # A head's own inside is drawn as a mouth cavity (see CAVITY_SHADING): its centre and radii
 # in the mouth frame (mouth widths: right, up, out of the mouth; up: to its roof, just above
@@ -792,6 +798,7 @@ class Head3D:
         # A movement in portrait px (x right, y down, z away) as a movement of the model.
         self.to_model = (mesh["cam_rot"].T @ np.diag([1, -1, -1]) / mesh["cam_scale"]).astype(np.float64)
         self.to_px = np.linalg.inv(self.to_model)
+        self.cam_scale = float(mesh["cam_scale"])  # portrait px per model unit
         face_width = np.ptp(points[:, 0])
         self.rigid = lip_sides(self.photo_px, points, face_width)[3]  # below the lips...
         self.rigid[LOWER_LIP] = False  # ...but for the lower lip
@@ -1060,7 +1067,12 @@ class Head3D:
         part = self.everything if part is None else part
         rows, follow = part.rows, part.follow
         rest = self.rest[rows]
-        moves = follow @ landmark_moves
+        if self.jaw_weight is not None:
+            jaw = self._own_jaw(landmark_moves)
+            beyond = self._beyond(landmark_moves, jaw)
+            moves = follow @ self._skin_moves(landmark_moves)
+        else:
+            moves = follow @ landmark_moves
         if any(ears):
             here = np.vstack([np.zeros((self.face_count, 2)), self.photo_px[rows] + moves[:, :2]])
             moves[:, :2] += (bend(here, part.ears, ears) - here)[self.face_count:]
@@ -1070,9 +1082,7 @@ class Head3D:
         # The jaw swings rigidly (the chin with it), but the skin on it still does what
         # your lips do beyond that (a smile pulling the corners up and out), as the face
         # does, so the two sides of the cut between the lips stay together.
-        jaw = self._own_jaw(landmark_moves)
-        beyond = follow @ self._beyond(landmark_moves, jaw)
-        swung = (rest + beyond @ self.to_model.T) @ jaw[:3, :3].T + jaw[:3, 3]
+        swung = (rest + (follow @ beyond) @ self.to_model.T) @ jaw[:3, :3].T + jaw[:3, 3]
         jaw_weight = self.jaw_weight[rows]
         shaped = shaped + jaw_weight * (swung - shaped)
         if len(part.face):
@@ -1107,8 +1117,20 @@ class Head3D:
         """What the landmarks do beyond swinging with the head's own jaw (portrait px)."""
         swing = (self.landmarks @ jaw[:3, :3].T + jaw[:3, 3] - self.landmarks) @ self.to_px.T
         beyond = np.where(self.rigid[:, None], 0.0, landmark_moves - swing)
-        beyond[:, 1] = np.minimum(beyond[:, 1], 0)  # dropping further than the jaw goes would only stretch it
+        # Dropping further than the jaw goes would only stretch it; rising off it fades
+        # out as the jaw opens (LIP_RISE_OPEN).
+        carried = swing[LIP_MIDDLE[1], 1] / (self.mouth_width * self.cam_scale)
+        beyond[:, 1] = np.minimum(beyond[:, 1], 0) * (1 - smoothstep(carried / LIP_RISE_OPEN))
         return beyond
+
+    def _skin_moves(self, landmark_moves: np.ndarray) -> np.ndarray:
+        """landmark_moves (portrait px) as the skin follows them: what is below the lips
+        (but for the lower lip) moves only with the jaw (see _with_the_jaw), and its swing
+        reaches the skin through the jaw weights alone. Skin beside the chin that followed
+        the chin's landmarks down as well would drop with the jaw however little it is on
+        it, and where that gives way to skin that stays, the fur between is drawn out
+        into streaks."""
+        return np.where(self.rigid[:, None], 0.0, landmark_moves)
 
     def _shape_on_gpu(self, landmark_moves: np.ndarray, ears):
         """Hands the vertex shader what it shapes the head with this frame (see _shape)."""
@@ -1118,6 +1140,7 @@ class Head3D:
             beyond = self._beyond(landmark_moves, jaw)
             upper = landmark_moves[LIP_MIDDLE[0]] @ self.to_model.T
             self.prog["tie_shift"].value = tuple(jaw[:3, 3] - jaw[:3, :3] @ upper)
+            landmark_moves = self._skin_moves(landmark_moves)
         self.moves.write(np.stack([landmark_moves, beyond]).astype("f4").tobytes())
         self.moves.use(2)
         hinges, turns = [(0.0, 0.0)] * 2, [0.0] * 2
