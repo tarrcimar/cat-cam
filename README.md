@@ -315,8 +315,9 @@ These constants sit at the top of their files:
    about its hinge as far as your lower lip drops, showing teeth, gums and a
    tongue modelled in Blender, a cat's or a dog's (`catcam/mouth3d.py`,
    `tools/mouth_model.py`), in front of a mouth cavity the shader traces
-   behind them: a wet pinkish-red lining with a ridged palate, darkening into
-   the throat.
+   behind them: a wet pink lining with a ridged palate and a deeper red
+   throat. All of it is lit as the heads are, by soft light that only gets in
+   through the opening between the lips, so it darkens with depth.
 7. While you are still and quiet, `catcam/idle.py` adds breathing, a sway and
    glances to the head. A background picture or video goes wherever the
    animal isn't (`catcam/background.py`). Emoji reactions are drawn on

@@ -256,18 +256,27 @@ shipped heads are like that:
   behind the teeth (`OWN_CAVITY` in `catcam/head3d.py`, in mouth widths: its
   roof just above the teeth, where the palate is, its floor `OWN_FLOOR` down
   and dropping further as the jaw opens) and colours the wall it hits: a
-  warm pinkish-red lining (`OWN_LINING`, taking on half the lip colour like
-  the gums, `LINING_TINT`), lit from the camera's side, with a soft mottle,
-  ridges across the palate and a wet sheen where its walls are seen edge on;
-  a throat (`OWN_THROAT`) darkening the back wall halfway down; a floor in the
-  tongue's shadow; and the lips' shadow on whatever is right behind them
-  (`LIPS_SHADOW`). A dog's lining has dark pigment blotches (`PIGMENT`).
+  dusky pink lining (`OWN_LINING`, taking on half the lip colour like the
+  gums, `LINING_TINT`) with a soft mottle, ridges across the palate and fine
+  folds down the cheeks; a deeper red throat (`OWN_THROAT`) halfway down the
+  back wall, going on further back (`OWN_THROAT_DEPTH`); a floor in the
+  tongue's shadow; and a dark line where the lips meet it (`LIPS_SHADOW`). A
+  dog's lining has dark pigment blotches (`PIGMENT`).
   Because it is traced, it turns with the head (the cheek wall shows as you
   turn, the palate as you tilt your head back), yet it is only a backdrop:
   never drawn outside the head's own inside, so it can't poke through the
   cheeks or chin, and the teeth and tongue are always in front of it. The
   modelled palate is left out for these heads, as the cavity's roof is the
   palate.
+- **Its light:** the cavity, teeth, gums and tongue share one light
+  (`MOUTH_LIGHT` in `catcam/head3d.py`), to match the soft photo light baked
+  into the heads: mostly light from all round that gets in only through the
+  opening between the lips, as much as each point sees of it, so the inside
+  darkens with depth, into the throat and under the upper lip, and brightens
+  as the jaw drops (`INSIDE_OPENING`, `INSIDE_AMBIENT`); some of it bounced
+  round the walls, red with the lining's colour (`INSIDE_BOUNCE`); and a
+  little of the head's own light shining in through the opening, glinting
+  off the wet lining in small broken glints (`INSIDE_KEY`, `INSIDE_SHEEN`).
 - **The mouth inside** is sized and placed by the slit: the import saves where
   the lips meet in the middle (the upper lip's rim there, so the teeth hang
   right behind it) and how wide the slit is. Teeth or tongue that
