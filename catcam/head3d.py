@@ -87,6 +87,44 @@ INSIDE_BOUNCE_GAPE = 0.3  # ...once the lips are this far apart (mouth widths; l
 INSIDE_KEY = 0.25  # ...and of one lit square on by the head's light through the opening
 INSIDE_SHEEN = 0.15  # how bright the wet glints are where that light glances back off it
 LID_REACH = 2  # portrait px: texels sampled this close to where the lids are drawn take part in blinks
+# The opening between a head's own cut lips is OPENING points round: each lip's edge at
+# OPENING / 2 points from corner to corner, closer together towards the corners where it
+# bends most. Each is a local straight-line fit to the cut's points within about
+# OPENING_SMOOTH mouth widths of it (side to side, at rest), so the cut's zigzags and
+# tufts smooth out into a lip's curve, and the corners are rounded over OPENING_ROUND
+# points either way.
+OPENING = 48
+OPENING_SMOOTH = 0.05
+OPENING_ROUND = 2
+# Smoothing cuts the outline inside the gap the cut leaves in places; once the lips are
+# OPENING_APART screen px apart, each point is pushed out over the cut's points within
+# OPENING_REACH mouth widths across of it (see Head3D._lip_gap).
+OPENING_APART = 4.0
+OPENING_REACH = 0.08
+# Inside the opening the lips roll inward: a band of their skin, LIP_BAND mouth widths deep
+# at the upper lip and at the lower, CORNER_BAND times more at the corners, where the lips
+# stretch. It takes the colour of the skin within LIP_SAMPLE mouth widths of the cut (its
+# darkest LIP_DARKEST: the lips, not the fur round them), darkens inward, and casts
+# LIP_SHADOW of a shadow as far again over the teeth and the inside behind it.
+LIP_BAND = (0.035, 0.06)
+CORNER_BAND = 0.5
+LIP_SAMPLE = 0.05
+LIP_DARKEST = 0.25
+LIP_BAND_SHARE = 0.2  # the band covers at most this much of how far apart the lips are
+LIP_SHADOW = 0.45
+# Below the cut a head's own mouth often has a recess before the lower lip (a slit left
+# open, with the model's own teeth painted in it): as the mouth opens it becomes part of
+# the opening, which then reaches down to the lower lip's rim, fully once the lips are
+# RIM_OPEN mouth widths apart. The rim is where the surface comes forward most steeply,
+# by at least RIM_STEP face widths over twice RIM_SPAN of height, within RIM_SEARCH face
+# widths below the cut (seen from the front).
+RIM_OPEN = 0.15
+RIM_SEARCH, RIM_SPAN, RIM_STEP = 0.08, 0.004, 0.02
+RIM_EDGE = 0.5  # face widths: a surface coming forward this far at once is the model's edge, not a lip
+RIM_SMOOTH = 0.1  # mouth widths across which the rim is smoothed
+# Screen px over which the fur gives way to the lips: an edge smoothed like an antialiased
+# one, so in px whatever the face's size.
+LIP_FEATHER = 1.5
 
 # The head is shaped here, on the GPU, as Head3D._shape does it on the CPU: with a few
 # hundred thousand vertices that would take most of a frame. Each vertex follows its
@@ -157,13 +195,17 @@ void main() {
 }
 """
 # Whether screen px p is inside the opening between the lips (a polygon of OPENING
-# points, crossing test).
-OPENING = 22
-IN_OPENING = """
-uniform vec2 opening[22];  // the gap between the lips on screen (px), around its edge
+# points, crossing test; nothing outside the box round it, where most of the head is).
+IN_OPENING = f"""
+const int OPENING = {OPENING};
+uniform vec2 opening[OPENING];  // the gap between the lips on screen (px), around its edge
+uniform vec4 opening_box;       // the box round it: x0, y0, x1, y1
+""" + """
 bool in_opening(vec2 p) {
+    if (any(lessThan(p, opening_box.xy)) || any(greaterThan(p, opening_box.zw)))
+        return false;
     bool inside = false;
-    for (int i = 0, j = 21; i < 22; j = i++) {
+    for (int i = 0, j = OPENING - 1; i < OPENING; j = i++) {
         vec2 a = opening[i], b = opening[j];
         if ((a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x)
             inside = !inside;
@@ -254,7 +296,7 @@ float noise(vec3 x) {  // smooth value noise, 0..1
 // px from p to the edge of the opening between the lips.
 float to_lips(vec2 p) {
     float near = 1e9;
-    for (int i = 0, j = 21; i < 22; j = i++) {
+    for (int i = 0, j = OPENING - 1; i < OPENING; j = i++) {
         vec2 a = opening[j], ab = opening[i] - a;
         float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
         near = min(near, length(p - a - t * ab));
@@ -398,6 +440,58 @@ void main() {
     color = vec4((colour * light * lighting.rgb + lighting.a).bgr, 1.0);  // BGR like the app
 }
 """
+# The lips' inner edge (see LIP_BAND), laid over the opening and just round it once the
+# head, its inside and the teeth are drawn: a quad over the opening's box.
+LIPS_VERTEX_SHADER = """
+#version 330
+uniform vec4 area;    // screen px: x0, y0, x1, y1
+uniform vec2 screen;  // px
+void main() {
+    vec2 corner = vec2(gl_VertexID & 1, gl_VertexID >> 1);
+    gl_Position = vec4(mix(area.xy, area.zw, corner) / screen * 2.0 - 1.0, 0.0, 1.0);
+}
+"""
+LIPS_FRAGMENT_SHADER = """
+#version 330
+""" + IN_OPENING + """
+uniform vec3 lip_colour[OPENING];  // BGR (0..1) of the lips at each point of the opening's edge...
+uniform float lip_band[OPENING];   // ...and how far in (px) they roll
+uniform vec3 inner;                // BGR (0..1) of their wet inside, as the mouth's lining
+uniform float feather;             // px
+uniform float shadow;              // how dark their shadow on what is behind them is
+out vec4 color;
+void main() {
+    vec2 p = gl_FragCoord.xy;
+    // The nearest point on the opening's edge, and the lips there.
+    float near = 1e9;
+    vec3 lip = vec3(0.0);
+    float band = 1.0;
+    for (int i = 0, j = OPENING - 1; i < OPENING; j = i++) {
+        vec2 a = opening[j], ab = opening[i] - a;
+        float t = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+        float d = length(p - a - t * ab);
+        if (d < near) {
+            near = d;
+            lip = mix(lip_colour[j], lip_colour[i], t);
+            band = mix(lip_band[j], lip_band[i], t);
+        }
+    }
+    if (!in_opening(p)) {
+        // Just outside, the fur gives way to the lips over a px or two.
+        float a = 1.0 - smoothstep(0.0, feather, near);
+        color = vec4(lip * a, a);  // premultiplied
+        return;
+    }
+    // Inside: the lip's rim catches the light, then it rolls away into the mouth,
+    // darkening, and shades what is right behind it.
+    float t = near / max(band, 1e-3);
+    float cover = 1.0 - smoothstep(0.5, 1.0, t);
+    vec3 c = mix(lip, inner, smoothstep(0.2, 0.8, t)) * mix(0.85, 0.4, smoothstep(0.15, 0.9, t));
+    c += 0.06 * exp(-pow((t - 0.12) / 0.1, 2.0));  // wet, where the rim turns in
+    float shade = shadow * (1.0 - smoothstep(0.6, 2.0, t));
+    color = vec4(c * cover, cover + (1.0 - cover) * shade);  // premultiplied
+}
+"""
 
 
 def files(name: str):
@@ -535,6 +629,147 @@ def mouth_frame(landmarks, facing):
     z = facing - (facing @ x) * x
     z /= np.linalg.norm(z)
     return origin, np.column_stack([x, np.cross(z, x), z]), np.linalg.norm(right - left)
+
+
+def smoothstep(x):
+    x = np.clip(x, 0, 1)
+    return x * x * (3 - 2 * x)
+
+
+def _round_corners(count: int) -> np.ndarray:
+    """(count, count) weights rounding a closed ring of points (see OPENING_ROUND)."""
+    step = (np.roll(np.eye(count), 1, axis=1) + 2 * np.eye(count) + np.roll(np.eye(count), -1, axis=1)) / 4
+    return np.linalg.matrix_power(step, OPENING_ROUND)
+
+
+def opening_map(across: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(OPENING, 2 * cut points) weights that make the opening's outline (see OPENING)
+    out of the lip cut's points (lip_cut raveled: the face's side and the jaw's,
+    alternating), and where each outline point is across the mouth (-1..1, upper lip
+    left to right, then the lower back). across: where each pair is from side to side
+    at rest (mouth widths)."""
+    half = OPENING // 2
+    lo, hi = across.min(), across.max()
+    spread = -np.cos(np.linspace(0, np.pi, half))
+    fit = np.zeros((half, len(across)))
+    for k, at in enumerate((lo + hi) / 2 + (hi - lo) / 2 * spread):
+        offset = across - at
+        weight = np.exp(-(offset / OPENING_SMOOTH) ** 2)
+        weight /= weight.max()
+        design = np.column_stack([np.ones_like(offset), offset])
+        normal = design.T @ (weight[:, None] * design) + 1e-9 * np.eye(2)
+        fit[k] = np.linalg.solve(normal, (design * weight[:, None]).T)[0]
+    ring = np.zeros((OPENING, 2 * len(across)))
+    ring[:half, 0::2] = fit
+    ring[half:, 1::2] = fit[::-1]
+    return _round_corners(OPENING) @ ring, np.concatenate([spread, spread[::-1]])
+
+
+def lip_colours(rest, jaw, uv, texture, cut, width) -> np.ndarray:
+    """(cut points, 2, 3) BGR (0..1) of the lips at each pair of the lip cut, on the face's
+    side and the jaw's: the darker half of the skin round it on that side (see LIP_SAMPLE)."""
+    h, w = texture.shape[:2]
+    reach = LIP_SAMPLE * width
+    ends = rest[cut[:, 0]]
+    around = np.nonzero(np.all((rest > ends.min(axis=0) - reach) & (rest < ends.max(axis=0) + reach),
+                               axis=1))[0]
+    tree = cKDTree(rest[around])
+    colours = np.zeros((len(cut), 2, 3))
+    for i, pair in enumerate(cut):
+        near = around[np.array(tree.query_ball_point(rest[pair[0]], reach), int)]
+        for side, on_jaw in enumerate((False, True)):
+            mine = near[(jaw[near] > 0.5) == on_jaw]
+            if not len(mine):
+                mine = pair[side:side + 1]
+            px = np.column_stack([uv[mine, 0] * w - 0.5, (1 - uv[mine, 1]) * h - 0.5])
+            skin = sample(texture, px)
+            grey = skin.mean(axis=1)
+            colours[i, side] = skin[grey <= np.quantile(grey, LIP_DARKEST)].mean(axis=0) / 255
+    return colours
+
+
+FRONT_VERTEX_SHADER = """
+#version 330
+in vec3 in_pos;  // clip space
+in float in_near;
+out float near;
+void main() {
+    gl_Position = vec4(in_pos, 1.0);
+    near = in_near;
+}
+"""
+FRONT_FRAGMENT_SHADER = """
+#version 330
+in float near;
+out float color;
+void main() {
+    color = near;
+}
+"""
+
+
+def front_depth(ctx, vertices, faces, cam_rot, cam_scale, centre, box) -> np.ndarray:
+    """How near the model is (portrait px toward the camera, -inf off it) at every
+    portrait px of box (x0, y0, x1, y1), seen as the portrait's camera saw it when it was
+    imported: px = centre + cam_scale * (cam_rot @ p).xy, y down."""
+    x0, y0, x1, y1 = box
+    w, h = x1 - x0, y1 - y0
+    q = vertices @ cam_rot.T * cam_scale
+    far = np.abs(q[:, 2]).max() + 1
+    clip = np.column_stack([(centre[0] + q[:, 0] - x0) / w * 2 - 1, 1 - (centre[1] - q[:, 1] - y0) / h * 2,
+                            -q[:, 2] / far, np.ones(len(q))])
+    prog = ctx.program(vertex_shader=FRONT_VERTEX_SHADER, fragment_shader=FRONT_FRAGMENT_SHADER)
+    vao = ctx.vertex_array(prog, [(ctx.buffer(np.column_stack([clip[:, :3], q[:, 2]]).astype("f4")),
+                                   "3f 1f", "in_pos", "in_near")], ctx.buffer(faces.astype("i4")))
+    fbo = ctx.framebuffer([ctx.renderbuffer((w, h), 1, dtype="f4")], ctx.depth_renderbuffer((w, h)))
+    fbo.use()
+    fbo.clear(-1e9, depth=1.0)
+    ctx.enable(moderngl.DEPTH_TEST)
+    vao.render()
+    near = np.frombuffer(fbo.read(components=1, dtype="f4"), "f4").reshape(h, w)[::-1]
+    for thing in (fbo, vao, prog):
+        thing.release()
+    return np.where(near < -1e8, -np.inf, near)
+
+
+def lower_lip(vertices, faces, jaw, cut, across, cam_rot, cam_scale, photo_px, face_width, ctx) -> np.ndarray:
+    """For each pair of the lip cut, a vertex on the rim of the lower lip below it (see
+    RIM_SEARCH): the jaw's side of the cut itself where the lower lip comes right up to
+    it. across: where each pair is from side to side (mouth widths, see opening_map)."""
+    q = vertices @ cam_rot.T * cam_scale
+    centre = np.median(photo_px - np.column_stack([q[:, 0], -q[:, 1]]), axis=0)
+    at = photo_px[cut[:, 1]]
+    span, search = max(int(round(RIM_SPAN * face_width)), 1), int(RIM_SEARCH * face_width)
+    x0, y0 = (at.min(axis=0) - 2 * span).astype(int)
+    x1, y1 = (at.max(axis=0) + (2 * span, search + 2 * span)).astype(int) + 1
+    near = front_depth(ctx, vertices, faces, cam_rot, cam_scale, centre, (x0, y0, x1, y1))
+    # Down each column from the cut: where the surface comes forward most steeply, if
+    # it does by RIM_STEP, is the lower lip's rim (by far more, it is the model's edge).
+    drop, found = np.zeros(len(cut)), np.zeros(len(cut))
+    for i, (x, y) in enumerate(np.round(at - (x0, y0)).astype(int)):
+        rise = near[y + 2 * span:y + search + 2 * span, x] - near[y:y + search, x]
+        rise = np.where(np.isfinite(rise) & (rise < RIM_EDGE * face_width), rise, 0)
+        best = int(np.argmax(rise))
+        if rise[best] > RIM_STEP * face_width:
+            drop[i], found[i] = best + 2 * span, 1
+    # Smoothed across the mouth like the opening's outline: a column that misses it takes
+    # its neighbours', where most of them found it. Gone by the corners, where the lips
+    # meet. Then the vertex at each spot.
+    weight = np.exp(-((across[:, None] - across[None]) / RIM_SMOOTH) ** 2)
+    middle = (across.min() + across.max()) / 2
+    corner = smoothstep((np.abs(across - middle) / (np.ptp(across) / 2) - 0.5) / 0.5)
+    share = (weight @ found) / weight.sum(axis=1)
+    drop = (weight @ (drop * found)) / np.maximum(weight @ found, 1e-9) * smoothstep(2 * share) * (1 - corner)
+    rim = at + np.column_stack([np.zeros(len(cut)), drop])
+    inside = np.all((photo_px > (x0, y0)) & (photo_px < (x1 - 1, y1 - 1)), axis=1) & (jaw > 0.5)
+    candidates = np.nonzero(inside)[0]
+    px = np.round(photo_px[candidates] - (x0, y0)).astype(int)
+    seen = q[candidates, 2] >= near[px[:, 1], px[:, 0]] - RIM_SPAN * face_width
+    candidates = candidates[seen]
+    if not len(candidates):
+        return cut[:, 1].copy()
+    rim_vertex = candidates[cKDTree(photo_px[candidates]).query(rim)[1]]
+    return np.where(drop > span, rim_vertex, cut[:, 1])
 
 
 class Head3D:
@@ -676,8 +911,6 @@ class Head3D:
             self.prog["focal"].value = (self.proj[0, 0], self.proj[1, 1])
             self.prog["screen"].value = (self.out_w, self.out_h)
             self.prog["rim"].value = LIPS_SHADOW * width * px_per_unit
-        if self.lip_cut is not None and len(self.lip_cut):
-            self.cut = self._part(self.lip_cut.ravel())
         self.mouth_prog["proj"].write(self.proj.astype("f4").T.tobytes())
         self.mouth_prog["shift"].value = tuple(self.shift)
         data = np.column_stack([parts.pos, parts.normal, parts.colour, parts.jaw, parts.light]).astype("f4")
@@ -717,6 +950,72 @@ class Head3D:
         self.texture.anisotropy = 8.0
         self.texture.build_mipmaps()
         self._uploaded = sprite
+        self.lips_vao = None
+        if self.own_mouth and self.lip_cut is not None and len(self.lip_cut):
+            self._set_up_lips(mesh, px_per_unit, face_width)
+
+    def _set_up_lips(self, mesh, px_per_unit: float, face_width: float):
+        """The opening's outline from the lip cut, the lower lip's rim below it, and the
+        lips' inner edge round it (see OPENING, RIM_OPEN, LIP_BAND). face_width: portrait px."""
+        ctx = self.renderer.ctx
+        across = (self.rest[self.lip_cut[:, 0]] - self.mouth_origin) @ self.mouth_axes[:, 0]
+        across /= self.mouth_width
+        self.rim = lower_lip(mesh["vertices"], mesh["faces"], self.jaw_weight[:, 0], self.lip_cut, across,
+                             mesh["cam_rot"].astype(np.float64), float(mesh["cam_scale"]), self.photo_px,
+                             face_width, ctx)
+        self.cut = self._part(np.concatenate([self.lip_cut.ravel(), self.rim]))
+        self.mouth_px = self.mouth_width * px_per_unit
+        self.outline, spread = opening_map(across)
+        self.round = _round_corners(OPENING)
+        # Which of the cut's points (raveled, as in _lip_gap) each outline point covers:
+        # those on its side of the cut, about as far across as it is.
+        at = (across.min() + across.max()) / 2 + np.ptp(across) / 2 * spread
+        upper = np.arange(OPENING) < OPENING // 2
+        self.lip_reach = ((np.abs(np.repeat(across, 2)[None] - at[:, None]) < OPENING_REACH)
+                          & (upper[:, None] == (np.arange(2 * len(across)) % 2 == 0)[None]))
+        colours = lip_colours(self.rest, self.jaw_weight[:, 0], mesh["uv"], self.base, self.lip_cut,
+                              self.mouth_width)
+        corner = np.clip((np.abs(spread) - 0.6) / 0.4, 0, 1) ** 2
+        band = np.where(upper, LIP_BAND[0], LIP_BAND[1]) * (1 + CORNER_BAND * corner)
+        self.lips_prog = ctx.program(vertex_shader=LIPS_VERTEX_SHADER, fragment_shader=LIPS_FRAGMENT_SHADER)
+        colours = np.clip(self.outline @ colours.reshape(-1, 3), 0, 1)
+        self.lips_prog["lip_colour"].value = [tuple(c) for c in colours]
+        self.lip_band = self.round @ band * self.mouth_px
+        soft = 1 + LINING_TINT * (np.asarray(self.flat.lip_tint, float) - 1)  # as the lining's
+        self.lips_prog["inner"].value = tuple(np.multiply(OWN_LINING, soft)[::-1])
+        self.lips_prog["feather"].value = LIP_FEATHER
+        self.lips_prog["shadow"].value = LIP_SHADOW
+        self.lips_prog["screen"].value = (self.out_w, self.out_h)
+        self.lips_vao = ctx.vertex_array(self.lips_prog, [])
+
+    def _set_opening(self, opening: np.ndarray):
+        """Hands the shaders the opening between the lips (OPENING screen px, gl_FragCoord)."""
+        box = (*opening.min(axis=0), *opening.max(axis=0))
+        points = [tuple(p) for p in opening]
+        for prog in (self.prog, self.mouth_prog) + ((self.lips_prog,) if self.lips_vao else ()):
+            prog["opening"].value = points
+            prog["opening_box"].value = box
+
+    def _draw_lips(self, opening: np.ndarray):
+        """The lips' inner edge over the opening (see LIP_BAND), once it is open at all."""
+        half = OPENING // 2
+        if self.lips_vao is None:
+            return
+        apart = np.linalg.norm(opening[:half] - opening[half:][::-1], axis=1)
+        if apart.max() < 1:
+            return
+        # Lips only just apart show a dark line between them, not just lips.
+        apart = self.round @ np.concatenate([apart, apart[::-1]])
+        self.lips_prog["lip_band"].value = list(np.minimum(self.lip_band, LIP_BAND_SHARE * apart))
+        grow = LIP_FEATHER + 1
+        self.lips_prog["area"].value = (*(opening.min(axis=0) - grow), *(opening.max(axis=0) + grow))
+        ctx = self.renderer.ctx
+        ctx.disable(moderngl.DEPTH_TEST)
+        ctx.enable(moderngl.BLEND)
+        ctx.blend_func = moderngl.ONE, moderngl.ONE_MINUS_SRC_ALPHA  # premultiplied
+        self.lips_vao.render(moderngl.TRIANGLE_STRIP, vertices=4)
+        ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+        ctx.disable(moderngl.BLEND)
 
     def face_on_screen(self):
         """Screen position of the cat's face center and its width in screen px."""
@@ -880,26 +1179,34 @@ class Head3D:
         grow = MOUTH_BOX * (hi - lo)
         return (*(lo - grow), *(hi + grow))
 
-    def _lip_gap(self, pts: np.ndarray, model_rot: np.ndarray) -> list:
+    def _lip_gap(self, pts: np.ndarray, model_rot: np.ndarray) -> np.ndarray:
         """The opening between a head's own cut lips on screen (gl_FragCoord px): the
         face's side of the cut left to right, then the jaw's back, each smoothed into
-        half of the opening's points. Closed, the two sides lie on each other.
-        pts: the lip cut's vertices (lip_cut, raveled), shaped."""
+        half of the opening's points (see opening_map). Closed, the two sides lie on
+        each other. pts: the lip cut's vertices (lip_cut, raveled) and the lower lip's
+        rim below them (rim), shaped."""
         clip = np.column_stack([pts @ model_rot.T + self.moved, np.ones(len(pts))]) @ self.proj.T
         screen = (clip[:, :2] / clip[:, 3:] + 1) / 2 * (self.out_w, self.out_h)
-        upper, lower = screen[0::2], screen[1::2]
+        screen, rim = screen[:2 * len(self.lip_cut)], screen[2 * len(self.lip_cut):]
+        # As the lips part, the jaw's side reaches down to the lower lip's rim.
+        lips = screen.copy()
+        apart = np.linalg.norm(screen[0::2] - screen[1::2], axis=1).max() / (RIM_OPEN * self.mouth_px)
+        below = rim[:, 1:] < screen[1::2, 1:]  # where the rim moves less than the cut's edge, the edge
+        lips[1::2] += smoothstep(apart) * below * (rim - screen[1::2])
+        ring = self.outline @ lips
+        # Smoothed, the outline would cut off bits of the gap the cut leaves (where the
+        # head's inside would show, dark, round the lips): each point is pushed out as far
+        # as the cut's points round it reach, once the lips are apart.
         half = OPENING // 2
-        bins = np.linspace(upper[:, 0].min(), upper[:, 0].max(), half + 1)
-        centres = (bins[1:] + bins[:-1]) / 2
-
-        def edge(side):
-            which = np.clip(np.digitize(side[:, 0], bins) - 1, 0, half - 1)
-            count = np.bincount(which, minlength=half)
-            mean = np.bincount(which, side[:, 1], half) / np.maximum(count, 1)
-            return np.interp(centres, centres[count > 0], mean[count > 0])
-
-        top, bottom = edge(upper), edge(lower)
-        return list(zip(centres, top)) + list(zip(centres[::-1], bottom[::-1]))
+        apart = np.clip(np.linalg.norm(ring[:half] - ring[half:][::-1], axis=1).max() / OPENING_APART, 0, 1)
+        if apart > 0:
+            ahead = np.roll(ring, -1, axis=0) - np.roll(ring, 1, axis=0)
+            out = np.column_stack([-ahead[:, 1], ahead[:, 0]])  # the ring runs clockwise
+            out /= np.maximum(np.linalg.norm(out, axis=1, keepdims=True), 1e-9)
+            reach = np.einsum("kij,kj->ki", screen[None] - ring[:, None], out)
+            push = np.where(self.lip_reach, reach, 0).max(axis=1).clip(0)
+            ring = ring + apart * self.round @ (push[:, None] * out)
+        return ring
 
     def _draw_mouth(self, landmark_moves: np.ndarray, model_rot: np.ndarray):
         if not self.own_mouth:
@@ -909,9 +1216,9 @@ class Head3D:
             clip = np.column_stack([lips @ model_rot.T + self.moved, np.ones(len(ring))]) @ self.proj.T
             ndc = clip[:, :2] / clip[:, 3:]
             screen = (ndc + 1) / 2 * (self.out_w, self.out_h)  # gl_FragCoord: px from the bottom left
-            opening = [tuple(p) for p in screen]
-            self.prog["opening"].value = opening
-            self.mouth_prog["opening"].value = opening
+            at = np.arange(OPENING) * len(screen) / OPENING  # as many points as the shaders take
+            step, t = at.astype(int), (at % 1)[:, None]
+            self._set_opening(screen[step] * (1 - t) + screen[(step + 1) % len(screen)] * t)
         skull, jaw = self._mouth_matrices(landmark_moves)
         self.mouth_prog["rot"].write(model_rot.astype("f4").T.tobytes())
         self.mouth_prog["skull"].write(skull.astype("f4").T.tobytes())
@@ -948,10 +1255,11 @@ class Head3D:
         r.ctx.enable(moderngl.DEPTH_TEST)
         r.ctx.disable(moderngl.BLEND)
         self.texture.use(0)
+        opening = None
         if self.own_mouth:
-            if self.lip_cut is not None and len(self.lip_cut):
-                self.prog["opening"].value = self._lip_gap(self._shape(landmark_moves, ears, self.cut),
-                                                           model_rot)
+            if self.lips_vao is not None:
+                opening = self._lip_gap(self._shape(landmark_moves, ears, self.cut), model_rot)
+                self._set_opening(opening)
             self.skin_fbo.use()
             self.skin_fbo.clear(depth=1.0)
             r.ctx.enable(moderngl.CULL_FACE)
@@ -971,5 +1279,7 @@ class Head3D:
         if self.seam_vao is not None:
             self.prog["seam"].value = True
             self.seam_vao.render()
+        if opening is not None:
+            self._draw_lips(opening)
         r.ctx.copy_framebuffer(r.resolved, r.msaa)
         return r.read()

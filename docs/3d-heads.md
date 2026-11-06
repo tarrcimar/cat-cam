@@ -296,6 +296,18 @@ shipped heads are like that:
   still does what your lips do (a smile pulls both corners up and out), and
   the two sides of the cut part only as far as the jaw swings, so a smile
   with the mouth closed shows no crack.
+- **The lips' edge:** the opening is not the cut's raw zigzag. Each lip's
+  edge is a smooth curve fitted to the cut (`OPENING`, `OPENING_SMOOTH` in
+  `catcam/head3d.py`), pushed out just far enough to cover the whole gap the
+  cut leaves, with rounded corners. Below the cut many heads have a recess
+  before the lower lip (a slit left open, sometimes with teeth painted in
+  it); as the mouth opens the opening reaches down to the lower lip's rim
+  (`RIM_*`), so that recess becomes part of the mouth instead of dropping
+  with the jaw like a flap. Inside the edge the lips roll inward: a band of
+  their skin (`LIP_BAND`, coloured from the texture next to the cut, so a
+  black-lipped cat keeps black lips) darkens into the mouth and shades the
+  teeth just behind it, and the fur gives way to it over a px or two
+  instead of ending in a hard line.
 - **Teeth** are short and rounded on purpose: a friendly cartoon, not a
   predator (`tools/mouth_model.py`).
 
