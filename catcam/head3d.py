@@ -340,11 +340,13 @@ vec3 cavity(vec2 p, bool gap) {
         vec3 oo = (o - cavity_centre) / r, dd = d / r;
         float a = dot(dd, dd), b = dot(oo, dd), c = dot(oo, oo) - 1.0;
         float disc = b * b - a * c;
-        if (disc < 0.0) continue;
-        vec3 hit = o + (-b + sqrt(disc)) / a * d;  // where the ray leaves it
-        if ((hit.y < cavity_centre.y) == (lower == 1)) {
+        // Where the ray leaves it; a ray passing beside it (out by the mouth's corners)
+        // takes the nearest point of its wall, so the wall doesn't end in a seam there.
+        vec3 s = normalize(oo + (-b + sqrt(max(disc, 0.0))) / a * dd);
+        vec3 hit = cavity_centre + s * r;
+        if ((hit.y < cavity_centre.y) == (lower == 1) || lower == 1) {
             q = hit;
-            u = (hit - cavity_centre) / r;
+            u = s;
             n = -normalize(u / r);  // facing in
             break;
         }
