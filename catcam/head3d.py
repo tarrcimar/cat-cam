@@ -138,6 +138,12 @@ RIM_SEARCH, RIM_SPAN, RIM_STEP = 0.08, 0.004, 0.02
 # nearer the hinge), so the opening's edge buckled up there, and anything painted on the
 # lip's inner side stayed in view below the opening.
 RIM_FLAT = 0.15
+# A sliver of the jaw can run up from the lips (Gingersnap's, up the groove under her nose):
+# the points of the lip cut in the middle SLIVER_MIDDLE of the mouth (its corners turn
+# down) with another of its points more than SLIVER_GAP face widths below them, as far
+# across as SLIVER_GAP / 2, are on it. Opening, it made a spike up toward the nose; it
+# stays with the face instead, with all of the jaw above the lips' edge there.
+SLIVER_GAP, SLIVER_MIDDLE = 0.004, 0.5
 RIM_EDGE = 0.5  # face widths: a surface coming forward this far at once is the model's edge, not a lip
 RIM_SMOOTH = 0.1  # mouth widths across which the rim is smoothed
 # Screen px over which the fur gives way to the lips: an edge smoothed like an antialiased
@@ -608,6 +614,28 @@ def follow_weights(vertices, photo_px, landmarks, points, face_model, face_width
     return csr_matrix((weights.ravel(), (rows, nearest.ravel())), shape=(len(photo_px), len(points)))
 
 
+def lip_sliver(photo_px, jaw, cut, face_width) -> tuple[np.ndarray, np.ndarray]:
+    """Which pairs of the lip cut (cut: face's side, jaw's) run up a sliver of the jaw above
+    the lips' edge (see SLIVER_GAP), and which vertices on the jaw lie above that edge
+    there, in the portrait (face_width px)."""
+    gap = SLIVER_GAP * face_width
+    at = photo_px[cut[:, 0]]
+    middle = np.abs(at[:, 0] - (at[:, 0].min() + at[:, 0].max()) / 2) < SLIVER_MIDDLE * np.ptp(at[:, 0]) / 2
+    across = np.abs(at[:, None, 0] - at[None, :, 0]) < gap / 2
+    above = across & (at[None, :, 1] > at[:, None, 1] + gap)  # [i, j]: j well below i
+    sliver = above.any(axis=1) & middle
+    if not sliver.any():
+        return sliver, np.zeros(0, int)
+    # The lips' edge there: the lowest of the cut's points across from each.
+    x0, x1 = at[sliver, 0].min() - gap, at[sliver, 0].max() + gap
+    edge = np.where(across, at[None, :, 1], -np.inf).max(axis=1)
+    order = np.argsort(at[:, 0])
+    line = np.interp(photo_px[:, 0], at[order, 0], edge[order])
+    on = (jaw > 0.5) & (photo_px[:, 0] > x0) & (photo_px[:, 0] < x1)
+    on &= (photo_px[:, 1] < line - gap / 2) & (photo_px[:, 1] > at[sliver, 1].min() - gap)
+    return sliver, np.nonzero(on)[0]
+
+
 class _Part(NamedTuple):
     """Some of a head's vertices, with what Head3D._shape needs to shape them."""
     rows: np.ndarray | slice  # them, and any face-side twins they are tied to
@@ -823,6 +851,12 @@ class Head3D:
         # How far each point of the upper lip is from the nose (portrait px, see UPPER_LIP_TRAVEL).
         self.lip_travel = UPPER_LIP_TRAVEL * cKDTree(points[NOSE, :2]).query(points[UPPER_LIP, :2])[0]
         jaw = mesh["jaw_weight"] if "jaw_weight" in mesh.files else np.zeros(0)
+        self.lip_cut = mesh["lip_cut"] if "lip_cut" in mesh.files else None
+        if len(jaw) and self.lip_cut is not None and len(self.lip_cut):
+            sliver, freed = lip_sliver(self.photo_px, jaw, self.lip_cut, face_width)
+            jaw = jaw.copy()
+            jaw[np.concatenate([freed, self.lip_cut[sliver, 1]])] = 0
+            self.lip_cut = self.lip_cut[~sliver]
         self.jaw_weight = jaw.astype(np.float64)[:, None] if len(jaw) else None
         self.follow = follow_weights(self.rest, self.photo_px, self.landmarks, points,
                                      face_width / float(mesh["cam_scale"]), face_width,
@@ -859,7 +893,6 @@ class Head3D:
         self.moves.filter = (moderngl.NEAREST, moderngl.NEAREST)
         face_model = self.face_model = face_width / float(mesh["cam_scale"])
         on_face = cKDTree(self.landmarks).query(self.rest)[0] < ON_FACE * face_model
-        self.lip_cut = mesh["lip_cut"] if "lip_cut" in mesh.files else None
         self.everything = self._part(slice(None))
         near, follow = _padded(self.follow, NEAREST)
         ear = np.zeros((len(self.rest), 2), "f4")

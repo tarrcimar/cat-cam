@@ -306,7 +306,10 @@ shipped heads are like that:
 - **The lips' edge:** the opening is not the cut's raw zigzag. Each lip's
   edge is a smooth curve fitted to the cut (`OPENING`, `OPENING_SMOOTH` in
   `catcam/head3d.py`), pushed out just far enough to cover the whole gap the
-  cut leaves, with rounded corners. Below the cut many heads have a recess
+  cut leaves, with rounded corners. Where a sliver of the jaw runs up from
+  the lips (Gingersnap's, up the groove under her nose), it stays with the
+  face when the head loads (`SLIVER_*`), so the opening has no spike up
+  toward the nose. Below the cut many heads have a recess
   before the lower lip (a slit left open, sometimes with teeth painted in
   it); as the mouth opens the opening reaches down to the lower lip's rim
   (`RIM_*`: the top of the lower lip's inner side, where the surface stops
