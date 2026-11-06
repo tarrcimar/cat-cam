@@ -11,10 +11,15 @@ def test_a_modelled_mouth_has_both_halves(animal):
     assert parts.normal.shape == parts.colour.shape == (n, 3)
     assert len(parts.jaw) == len(parts.light) == n
     assert parts.faces.min() >= 0 and parts.faces.max() < n
-    # Upper teeth and gum on the skull, the rest on the jaw, nothing in between.
-    assert set(np.unique(parts.jaw)) == {0.0, 1.0}
-    skull, jaw = parts.pos[parts.jaw == 0], parts.pos[parts.jaw == 1]
+    # Upper teeth and gum on the skull, the rest on the jaw; only the tongue's body in
+    # between, staying a little with the skull as the jaw drops, never less than half.
+    assert np.all((parts.jaw == 0) | (parts.jaw >= 0.5)) and parts.jaw.max() == 1
+    between = (parts.jaw > 0) & (parts.jaw < 1)
+    assert 0 < between.mean() < 0.5
+    skull, jaw = parts.pos[parts.jaw == 0], parts.pos[parts.jaw > 0]
     assert skull[:, 1].mean() > jaw[:, 1].mean()
+    # The tongue's tip stays with the jaw, behind the lower teeth: what lags is further back.
+    assert parts.pos[between, 2].max() < parts.pos[parts.jaw == 1, 2].max()
     # A few thousand triangles, inside the mouth: within its width, behind the lips.
     assert 1000 < len(parts.faces) < 10000
     assert np.abs(parts.pos[:, 0]).max() < 0.6

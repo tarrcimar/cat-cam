@@ -29,45 +29,55 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "assets" / "mouth"
 
 # The dental arch, in mouth widths: z of the front teeth, and z at x = ±ARCH_HALF on the
-# way back (a parabola, continued past there for the cheek teeth).
-ARCH_FRONT, ARCH_BACK, ARCH_HALF = -0.06, -0.36, 0.38
+# way back (a parabola, continued past there for the cheek teeth). Wide, so the cheek teeth
+# reach back toward the corners of the mouth as a cat's do, not huddle in its middle.
+ARCH_FRONT, ARCH_BACK, ARCH_HALF = -0.075, -0.36, 0.48
 LOWER_ARCH = (0.9, -0.03)  # the lower arch is this much narrower and sits this far back, inside the upper
-UPPER_GUM_Y, LOWER_GUM_Y = 0.02, -0.03  # where the teeth come out of the gums
+# Where the teeth come out of the gums. Just past where the lips meet, so with the mouth
+# open a strip of gum shows under the upper lip and above the lower one, the crowns whole
+# below it, instead of only the tips of the teeth peeking out from behind the lips.
+UPPER_GUM_Y, LOWER_GUM_Y = -0.014, -0.012
 ROOT_DEPTH = 0.02  # teeth start this far inside the gum, so nothing shows where they come out
 FIRST_GAP = 0.004  # between the two middle incisors
 
 # Teeth on each side, from the middle back: (kind, width along the arch, thickness across
-# it, crown length, gap before it), mouth widths. Cats: tiny incisors, short rounded fangs,
-# a gap, then blade-like premolars ending in the carnassial. Dogs: bigger incisors, stout
-# rounded fangs and a row of premolars. Friendly, not fierce: the fangs are kept short.
+# it, crown length, gap before it), mouth widths. Cats: small incisors, a gap the lower
+# fang fits in, rounded fangs about as far apart as the nose is wide, a gap, then
+# blade-like premolars ending in the carnassial. Dogs: bigger incisors, the outer one nearly
+# a little fang, stout rounded fangs and a row of spaced premolars. Friendly, not fierce:
+# the fangs are long enough to read on a video call, not daggers.
 TEETH = {
     "cat": {
-        "upper": [("incisor", 0.022, 0.016, 0.03, 0), ("incisor", 0.022, 0.016, 0.032, 0.003),
-                  ("incisor", 0.026, 0.02, 0.04, 0.003), ("canine", 0.05, 0.044, 0.1, 0.02),
-                  ("premolar", 0.03, 0.018, 0.025, 0.05), ("premolar", 0.055, 0.024, 0.05, 0.006),
-                  ("carnassial", 0.095, 0.03, 0.06, 0.006)],
-        "lower": [("incisor", 0.018, 0.014, 0.025, 0), ("incisor", 0.018, 0.014, 0.027, 0.003),
-                  ("incisor", 0.02, 0.016, 0.03, 0.003), ("canine", 0.044, 0.04, 0.08, 0.01),
-                  ("premolar", 0.05, 0.022, 0.045, 0.06), ("premolar", 0.055, 0.024, 0.05, 0.006),
-                  ("molar", 0.08, 0.028, 0.055, 0.006)],
+        "upper": [("incisor", 0.036, 0.022, 0.045, 0), ("incisor", 0.038, 0.023, 0.048, 0.001),
+                  ("incisor", 0.044, 0.028, 0.06, 0.002), ("canine", 0.07, 0.06, 0.14, 0.07),
+                  ("premolar", 0.032, 0.022, 0.035, 0.035), ("premolar", 0.06, 0.027, 0.065, 0.006),
+                  ("carnassial", 0.1, 0.032, 0.078, 0.006)],
+        "lower": [("incisor", 0.03, 0.018, 0.036, 0), ("incisor", 0.031, 0.019, 0.039, 0.001),
+                  ("incisor", 0.034, 0.021, 0.045, 0.001), ("canine", 0.06, 0.053, 0.112, 0.03),
+                  ("premolar", 0.052, 0.023, 0.058, 0.045), ("premolar", 0.058, 0.026, 0.064, 0.006),
+                  ("molar", 0.08, 0.028, 0.068, 0.006)],
     },
     "dog": {
-        "upper": [("incisor", 0.032, 0.022, 0.045, 0), ("incisor", 0.032, 0.022, 0.047, 0.003),
-                  ("incisor", 0.04, 0.03, 0.06, 0.004), ("canine", 0.07, 0.06, 0.11, 0.016),
-                  ("premolar", 0.05, 0.024, 0.045, 0.03), ("premolar", 0.06, 0.026, 0.05, 0.008),
-                  ("carnassial", 0.1, 0.032, 0.07, 0.008)],
-        "lower": [("incisor", 0.028, 0.02, 0.04, 0), ("incisor", 0.028, 0.02, 0.042, 0.003),
-                  ("incisor", 0.032, 0.024, 0.048, 0.003), ("canine", 0.064, 0.056, 0.09, 0.012),
-                  ("premolar", 0.045, 0.022, 0.04, 0.035), ("premolar", 0.05, 0.024, 0.045, 0.008),
-                  ("premolar", 0.055, 0.026, 0.05, 0.008)],
+        "upper": [("incisor", 0.038, 0.026, 0.056, 0), ("incisor", 0.04, 0.027, 0.06, 0.001),
+                  ("incisor", 0.05, 0.036, 0.078, 0.003), ("canine", 0.08, 0.07, 0.155, 0.032),
+                  ("premolar", 0.05, 0.026, 0.05, 0.03), ("premolar", 0.06, 0.028, 0.06, 0.012),
+                  ("carnassial", 0.1, 0.034, 0.085, 0.01)],
+        "lower": [("incisor", 0.032, 0.022, 0.05, 0), ("incisor", 0.033, 0.023, 0.053, 0.001),
+                  ("incisor", 0.037, 0.026, 0.058, 0.001), ("canine", 0.07, 0.062, 0.13, 0.02),
+                  ("premolar", 0.045, 0.024, 0.045, 0.035), ("premolar", 0.05, 0.025, 0.052, 0.012),
+                  ("premolar", 0.056, 0.027, 0.058, 0.012)],
     },
 }
 CANINE_CURVE = {"cat": 0.08, "dog": 0.06}  # fang tips bend back into the mouth by this share of their length
+# No two teeth alike: each tooth's length, width and shade differ from the table by up to
+# these shares, left and right independently, so a row doesn't read as a picket fence.
+VARY_LENGTH, VARY_WIDTH, VARY_SHADE = 0.08, 0.05, 0.04
+VARY_LEAN = 0.1  # radians: and each leans to one side or the other along the arch by up to this
 
 # Gums: the crest wraps each tooth this much beyond its thickness, and dips between teeth
 # (and rises over each tooth's middle) by SCALLOP; heights of the band into the lip on the
 # outside and toward the palate or floor inside.
-GUM_COVER, SCALLOP = 0.012, 0.007
+GUM_COVER, SCALLOP = 0.014, 0.009
 GUM_OUTSIDE = {False: 0.05, True: 0.03}  # upper, lower: the lower lip covers less of its gum
 GUM_INSIDE = 0.035
 # Across the band, from the lip side over the crest to the inside: (out, into, on the crest)
@@ -83,27 +93,68 @@ PALATE_VAULT = 0.03  # how much higher its middle is than its edges
 RUGAE = {"cat": 6, "dog": 7}  # how many
 RUGA_SPACING, RUGA_RADIUS, RUGA_SWEEP = 0.055, 0.007, 0.9  # z step, thickness, how far back they bow
 
-# Tongue: (tip z, back z, top y, half width at the tip and at the back, thickness, groove
-# depth and half width). It lies in the lower arch, its tip behind the lower incisors.
+# Tongue: (tip z, back z, top y of its middle, its widest half width, thickness, how much
+# its middle rises above its edges, groove depth and half width). It fills the lower arch,
+# its tip just behind the lower incisors and its sides TONGUE_CLEAR inside the arch (the
+# gums and teeth are between), up to its widest, narrowing by TONGUE_NARROW toward its
+# root; from a thin spatula at the tip (TONGUE_TIP_THICK of its thickness) it thickens into
+# its body. A dog's is longer, flatter and wider, with a deeper groove.
 TONGUE = {
-    "cat": (-0.13, -0.85, -0.045, 0.12, 0.2, 0.09, 0.008, 0.03),
-    "dog": (-0.12, -0.9, -0.04, 0.15, 0.26, 0.1, 0.012, 0.045),
+    "cat": (-0.112, -0.85, -0.045, 0.28, 0.11, 0.02, 0.013, 0.03),
+    "dog": (-0.108, -0.9, -0.045, 0.32, 0.1, 0.014, 0.016, 0.04),
 }
+TONGUE_CLEAR, TONGUE_NARROW, TONGUE_TIP_THICK = 0.04, 0.3, 0.22
+TONGUE_ROUND = 0.12  # the share of its length that rounds off into the tip
+TONGUE_DIP = 0.008  # mouth widths: how much lower its tip lies than the top of its body
+# Mouth widths: its back half curves down this far toward the throat, so it fades into the
+# dark there instead of ending in an edge.
+TONGUE_FALL = 0.12
+TONGUE_RINGS, TONGUE_SIDES = 34, 36  # its mesh: cross-sections along it, points around each
+# As the jaw drops the tongue doesn't just fall with it: its body rises and comes forward
+# a little, staying with the skull by up to this share at its back (none at its tip, which
+# stays behind the lower incisors).
+TONGUE_LIFT = 0.12
 
 # Colours (RGB 0..1), and how much the cat's lip colour tints each (0 = not at all, 1 = fully).
-ENAMEL, ENAMEL_ROOT = (0.95, 0.93, 0.86), (0.82, 0.76, 0.62)
-GUM, GUM_MARGIN = (0.62, 0.3, 0.33), (0.78, 0.47, 0.48)  # deep, and the paler crest at the teeth
+# Enamel is warmer where it comes out of the gum, ivory over the crown, and a little
+# translucent (greyer) over its last TIP_GLASS share toward the tip.
+ENAMEL_NECK, ENAMEL, ENAMEL_TIP = (0.9, 0.81, 0.68), (0.98, 0.96, 0.91), (0.88, 0.88, 0.87)
+TIP_GLASS = 0.2
+GUM, GUM_MARGIN = (0.7, 0.36, 0.41), (0.93, 0.62, 0.64)  # deep, and the pale pink crest at the teeth
+MARGIN_BAND = 0.03  # mouth widths: how far from the crest the gum turns from pale to deep
+# Dogs' gums are often pigmented: this share of them blotched this dark (RGB 0..1), the
+# blotches about this big (mouth widths). The crest at the teeth stays pink.
+GUM_PIGMENT = {"cat": 0.0, "dog": 0.6}
+PIGMENT_COLOUR, PIGMENT_SIZE = (0.2, 0.14, 0.15), 0.05
 PALATE, RUGA = (0.55, 0.27, 0.3), (0.72, 0.44, 0.45)
-TONGUE_COLOUR, TONGUE_TIP = {"cat": (0.78, 0.45, 0.5), "dog": (0.74, 0.34, 0.4)}, (0.85, 0.5, 0.54)
-PAPILLAE = {"cat": 0.1, "dog": 0.04}  # speckle on the tongue: cats' is rough
-SOFT_TINT = 0.5  # gums, palate and tongue take half the lip colour: it's strong
+# A warm (salmon) pink, redder at the tip; the middle is paler where a cat's rough
+# papillae are, speckled by PAPILLAE (shares of its brightness): cats' rough, dogs' smooth.
+TONGUE_COLOUR = {"cat": (0.94, 0.5, 0.53), "dog": (0.95, 0.44, 0.5)}
+TONGUE_TIP = {"cat": (0.97, 0.48, 0.52), "dog": (0.98, 0.44, 0.5)}
+TONGUE_MIDDLE = {"cat": (0.93, 0.6, 0.62), "dog": (0.93, 0.5, 0.55)}
+# Toward the throat it turns the colour of the mouth's inside (RGB 0..1; the cavity the
+# head draws), over this span (mouth widths) around where it starts to fall away.
+TONGUE_BACK, TONGUE_BACK_SPAN = (0.45, 0.14, 0.16), 0.4
+PAPILLAE = {"cat": 0.16, "dog": 0.05}
+SOFT_TINT = 0.5  # gums and palate take half the lip colour: it's strong
+TONGUE_TINT = 0.3  # the tongue less: it is pinker than any lip
 
 # Light: ambient occlusion from AO_RAYS rays over each vertex's hemisphere, blocked by
-# anything within AO_REACH (mouth widths) in the same half of the mouth; the throat end
-# darkens by up to DEEP over DEEP_SPAN behind the front teeth; enamel catches more light.
-AO_RAYS, AO_REACH, AO_FLOOR = 64, 0.15, 0.3
-DEEP, DEEP_SPAN = 0.6, 0.8
-ENAMEL_LIGHT = 1.25
+# anything within AO_REACH (mouth widths) in the same half of the mouth, and in the jaw by
+# a floor under the tongue (FLOOR_Y; not drawn) so its edges and the gums' inside are dark;
+# AO_POWER > 1 deepens the shadow in the creases. The throat end darkens by up to DEEP
+# over DEEP_SPAN behind the front teeth. Teeth are shaded where they come out of the gum,
+# by CROWN_SHADOW right there, fading over CROWN_SHADOW_SPAN (mouth widths).
+AO_RAYS, AO_REACH, AO_FLOOR, AO_POWER = 96, 0.15, 0.25, 1.4
+# Rays start this far off the surface (mouth widths): any closer and on a curved surface
+# they hit the next row of faces, which streaks it.
+AO_START = 0.002
+FLOOR_Y = -0.16
+DEEP, DEEP_SPAN = 0.7, 0.8
+CROWN_SHADOW, CROWN_SHADOW_SPAN = 0.4, 0.009
+# Teeth take only this share of their ambient occlusion: enamel is bright and lets light
+# through, and small lower teeth by the tongue would otherwise turn grey.
+ENAMEL_AO = 0.6
 
 
 def _gauss(u, centre, width):
@@ -137,12 +188,18 @@ class Arch:
 
 
 def place_teeth(animal: str, lower: bool):
-    """Each tooth of one jaw as (kind, s of its middle, width, thickness, length), both sides."""
-    teeth, s = [], FIRST_GAP / 2
-    for kind, width, thick, length, gap in TEETH[animal]["lower" if lower else "upper"]:
-        s += gap + width / 2
-        teeth += [(kind, side * s, width, thick, length) for side in (1, -1)]
-        s += width / 2
+    """Each tooth of one jaw as (kind, s of its middle, width, thickness, length, shade,
+    lean), both sides, each a little different (VARY_*): the same every run."""
+    rng = np.random.default_rng([list(TEETH).index(animal), int(lower)])
+    teeth = []
+    for side in (1, -1):
+        s = FIRST_GAP / 2
+        for kind, width, thick, length, gap in TEETH[animal]["lower" if lower else "upper"]:
+            dl, dw, shade, lean = rng.uniform(-1, 1, 4) * (VARY_LENGTH, VARY_WIDTH, VARY_SHADE, VARY_LEAN)
+            w = width * (1 + dw)
+            s += gap + w / 2
+            teeth.append((kind, side * s, w, thick * (1 + dw), length * (1 + dl), 1 + shade, lean))
+            s += w / 2
     return teeth
 
 
@@ -158,11 +215,11 @@ def _grid_faces(rows: int, cols: int, wrap: bool = False):
 def _ring_tooth(c, along, out, up, width, thick, length, kind, curve):
     """An incisor (a chisel: flat across the arch, thinning to its edge) or a canine (a
     curved cone) from its rings of cross-sections, root in the gum."""
-    sides = 8
-    if kind == "canine":
-        ts = [-ROOT_DEPTH / length, 0, 0.15, 0.35, 0.55, 0.75, 0.9]
-        # A rounded cone: it tapers, then closes in a dome rather than a point.
-        size = lambda t: (1 - 0.5 * t) * np.sqrt(max(1 - t ** 3, 0.0))  # noqa: E731
+    sides = 10
+    if kind == "canine":  # rings closer together toward the tip, so it rounds off smoothly
+        ts = [-ROOT_DEPTH / length, 0, 0.15, 0.35, 0.55, 0.72, 0.84, 0.92, 0.97]
+        # A rounded cone: it tapers, then closes in a blunt dome rather than a point.
+        size = lambda t: (1 - 0.5 * t) * np.sqrt(max(1 - t ** 6, 0.0))  # noqa: E731
         across, power, bend = lambda t: 1.0, 2.0, curve  # noqa: E731
     else:
         ts = [-ROOT_DEPTH / length, 0, 0.4, 0.75, 0.92]
@@ -209,20 +266,21 @@ def _blade_tooth(c, along, out, up, width, thick, length, kind):
 
 
 def teeth(animal: str, lower: bool):
-    """(name, verts, faces, kinds) of every tooth in one jaw."""
+    """(verts, faces, base, up, length, shade) of every tooth in one jaw."""
     arch = Arch(lower)
-    up = np.array([0, 1.0 if lower else -1.0, 0])
     gum_y = LOWER_GUM_Y if lower else UPPER_GUM_Y
     out = []
-    for kind, s, width, thick, length in place_teeth(animal, lower):
+    for kind, s, width, thick, length, shade, lean in place_teeth(animal, lower):
         point, along, outward = arch.frame(s)
         along = along * np.sign(s)  # from the middle toward the back, on either side
         base = point + [0, gum_y, 0]
+        up = np.array([0, 1.0 if lower else -1.0, 0])
         if kind in ("incisor", "canine"):
+            up = up * np.cos(lean) + along * np.sin(lean)
             v, f = _ring_tooth(base, along, outward, up, width, thick, length, kind, CANINE_CURVE[animal])
         else:
             v, f = _blade_tooth(base, along, outward, up, width, thick, length, kind)
-        out.append((v, f, base, up, length))
+        out.append((v, f, base, up, length, shade))
     return out
 
 
@@ -231,9 +289,9 @@ def gum(animal: str, lower: bool):
     lip side over the crest to the inside, scalloped around each tooth."""
     arch = Arch(lower)
     placed = place_teeth(animal, lower)
-    end = max(abs(s) + w / 2 for _, s, w, _, _ in placed) + GUM_PAST
+    end = max(abs(s) + w / 2 for _, s, w, *_ in placed) + GUM_PAST
     stations = {0.0, end, -end}  # each tooth's middle and edges, so the scallops fall on teeth
-    for _, s, w, _, _ in placed:
+    for _, s, w, *_ in placed:
         stations |= {s - w / 2, s, s + w / 2}
     ss = np.array(sorted(stations))
     near = [min(placed, key=lambda t: abs(t[1] - s)) for s in ss]
@@ -310,32 +368,40 @@ def rugae(animal: str, gum_verts):
 
 
 def tongue(animal: str):
-    """The tongue: a rounded cube, smoothed by subdivision, then shaped: a round tip
-    widening to the back, a flat top with a groove down its middle, the tip dipping."""
-    tip, back, top, tip_half, back_half, thick, groove, groove_half = TONGUE[animal]
-    bpy.ops.mesh.primitive_cube_add(size=2)
-    ob = bpy.context.object
-    mod = ob.modifiers.new("round", "SUBSURF")
-    mod.levels = 3
-    bpy.ops.object.modifier_apply(modifier=mod.name)
-    p = np.array([v.co[:] for v in ob.data.vertices])
-    p /= np.linalg.norm(p, axis=1, keepdims=True)
-    # Unit sphere -> tongue: zn runs from the back (-1) to the tip (1).
-    zn = p[:, 2]
-    ring = np.sqrt(np.maximum(1 - zn ** 2, 1e-6))
-    side, height = p[:, 0] / ring, p[:, 1] / ring  # where around the cross-section, -1..1
-    roundness = np.sqrt(np.maximum(1 - np.clip((zn - 0.3) / 0.7, 0, 1) ** 2, 0))  # the round tip
-    half = (back_half + (tip_half - back_half) * np.clip((zn + 0.6) / 1.6, 0, 1) ** 0.8) * roundness
-    x = side * half
-    flat = np.sign(height) * np.abs(height) ** 0.45  # a flat top and bottom, rounded edges
-    y = top - thick / 2 + flat * thick / 2 * np.maximum(roundness, 0.35)
-    fade = np.clip((1 - zn) / 0.25, 0, 1) * (height > 0)
-    y -= groove * np.exp(-((x / groove_half) ** 2)) * fade * np.clip(height, 0, 1)
-    z = back + (zn + 1) / 2 * (tip - back)
-    y -= 0.02 * np.clip((zn - 0.55) / 0.45, 0, 1) ** 2  # the tip dips behind the teeth
-    for v, co in zip(ob.data.vertices, np.column_stack([x, y, z])):
-        v.co = co
-    ob.data.update()
+    """The tongue, from cross-sections along it (u: 0 at the tip, 1 at the back): in plan
+    it fills the lower arch behind a round tip; a thin spatula at the tip, thick in its
+    body, its top domed with a groove down the middle and round at the edges."""
+    tip, back, top, widest, thick, dome, groove, groove_half = TONGUE[animal]
+    u = np.linspace(0, 1, TONGUE_RINGS)[:, None] ** 1.3  # closer together toward the tip, where it shows
+    theta = 2 * np.pi * np.arange(TONGUE_SIDES) / TONGUE_SIDES
+    c, s = np.cos(theta)[None], np.sin(theta)[None]
+    # An ellipse around, a little fuller at the top and bottom: round edges, no walls.
+    across, up = c, np.sign(s) * np.abs(s) ** 0.8
+    # Closing round at both ends (the back is never seen, but closed it shades right).
+    ends = (np.sqrt(1 - (1 - np.clip(u / TONGUE_ROUND, 0, 1)) ** 2)
+            * np.sqrt(1 - np.clip((u - 0.9) / 0.1, 0, 1) ** 2))
+    z = tip + (back - tip) * u
+    arch = Arch(lower=True)
+    inside = np.interp(z, arch.z[::-1], arch.x[::-1]) - TONGUE_CLEAR
+    root = 1 - TONGUE_NARROW * np.clip((u - 0.5) / 0.5, 0, 1) ** 1.5
+    half = np.minimum(inside, widest) * ends * root
+    body = np.clip(u / 0.4, 0, 1)
+    thickness = thick * (TONGUE_TIP_THICK + (1 - TONGUE_TIP_THICK) * body * (2 - body)) * np.sqrt(ends)
+    x = half * across
+    rel = x / np.maximum(half, 1e-6)
+    top_side = np.clip(up, 0, 1)
+    # Its top: the middle humps up behind the tip (which lies TONGUE_DIP lower), falling
+    # away to the edges and a little toward the throat; the groove fades out at the tip.
+    hump = np.clip(u / 0.35, 0, 1) ** 1.5 * (1 - 0.6 * np.clip((u - 0.6) / 0.4, 0, 1))
+    y = top - thickness / 2 + thickness / 2 * up
+    y += top_side * (dome * (1 - rel ** 2) * hump - TONGUE_DIP * (1 - hump))
+    y -= top_side * groove * np.exp(-((x / groove_half) ** 2)) * np.clip(u / 0.15, 0, 1)
+    y -= TONGUE_FALL * np.clip((u - 0.45) / 0.55, 0, 1) ** 2
+    verts = np.stack([x, y, np.broadcast_to(z, x.shape)], axis=-1).reshape(-1, 3)
+    faces = np.array(_grid_faces(TONGUE_RINGS, TONGUE_SIDES, wrap=True))
+    middle = top - thick / 2
+    faces = _orient(verts, faces, lambda f: f * [1, 1, 0] - [0, middle, 0])  # away from its middle line
+    ob = _object("tongue", verts, faces)
     return ob
 
 
@@ -377,10 +443,67 @@ def _arrays(ob):
     return verts.reshape(-1, 3), normals.reshape(-1, 3), tris.reshape(-1, 3)
 
 
-def _noise(pos, scale):
-    """Cheap fixed speckle in -1..1 from positions."""
-    h = np.sin(pos @ np.array([127.1, 311.7, 74.7]) / scale) * 43758.5453
-    return 2 * (h - np.floor(h)) - 1
+def _speckle(count):
+    """Fixed speckle in -1..1, one per vertex. Random, not from the positions: a hash of
+    those lines up with the mesh's regular rows into stripes."""
+    return np.random.default_rng(count).uniform(-1, 1, count)
+
+
+def _blotches(pos, size):
+    """Smooth fixed blotches in 0..1, about size across, from a few crossed waves."""
+    k = pos / size
+    waves = (np.sin(1.7 * k[:, 0] + 0.3 * k[:, 1] + 2.1 * k[:, 2])
+             + np.sin(-0.6 * k[:, 0] + 1.9 * k[:, 1] + 1.3 * k[:, 2] + 1.3)
+             + np.sin(1.1 * k[:, 0] - 1.4 * k[:, 2] + 2.7))
+    return (waves / 3 + 1) / 2
+
+
+def _mix(a, b, t):
+    """Per vertex blend of colours a and b (each RGB or per vertex) by t (0..1)."""
+    t = np.asarray(t, float)[:, None]
+    return (1 - t) * np.asarray(a, float) + t * np.asarray(b, float)
+
+
+def enamel_colour(pos, base, up, length, shade):
+    """Warm at the neck, ivory over the crown, a little glassy toward the tip."""
+    h = np.clip((pos - base) @ up / length, 0, 1)
+    colour = _mix(ENAMEL_NECK, ENAMEL, np.clip(h / 0.35, 0, 1) ** 0.8)
+    colour = _mix(colour, ENAMEL_TIP, np.clip((h - 1 + TIP_GLASS) / TIP_GLASS, 0, 1) ** 1.5)
+    return colour * shade
+
+
+def gum_colour(animal, pos, gum_y):
+    """Pale pink at the crest, deeper away from it; blotched dark if the animal's are."""
+    t = np.clip(np.abs(pos[:, 1] - gum_y) / MARGIN_BAND, 0, 1)
+    colour = _mix(GUM_MARGIN, GUM, t)
+    if GUM_PIGMENT[animal]:
+        b = _blotches(pos, PIGMENT_SIZE)
+        threshold = 1 - GUM_PIGMENT[animal]
+        dark = np.clip((b - threshold + 0.08) / 0.16, 0, 1) * np.clip(t * 6, 0, 1)
+        colour = _mix(colour, PIGMENT_COLOUR, dark)
+    return colour
+
+
+def tongue_colour(animal, pos, n):
+    """Redder toward the tip, paler and speckled with papillae over the middle of its top,
+    dark where it falls away into the throat."""
+    tip, back, *_ = TONGUE[animal]
+    from_tip = np.clip((tip - pos[:, 2]) / 0.12, 0, 1)
+    colour = _mix(TONGUE_TIP[animal], TONGUE_COLOUR[animal], from_tip)
+    on_top = np.clip(n[:, 1] * 1.5, 0, 1)
+    middle = np.exp(-((pos[:, 0] / 0.13) ** 2)) * on_top * from_tip
+    colour = _mix(colour, TONGUE_MIDDLE[animal], 0.5 * middle)
+    speckle = 1 + PAPILLAE[animal] * _speckle(len(pos)) * (0.4 + 0.6 * on_top)
+    falls = tip + 0.45 * (back - tip)  # see tongue()
+    colour = _mix(colour * speckle[:, None], TONGUE_BACK,
+                  np.clip((falls + 0.5 * TONGUE_BACK_SPAN - pos[:, 2]) / TONGUE_BACK_SPAN, 0, 1))
+    return colour
+
+
+def tongue_lift(animal, pos):
+    """The tongue's jaw weight: 1 at its tip, less toward its back (TONGUE_LIFT)."""
+    tip, back, *_ = TONGUE[animal]
+    return 1 - TONGUE_LIFT * np.clip((tip - pos[:, 2]) / (tip - back), 0, 1) ** 0.8
 
 
 def build(animal: str):
@@ -388,33 +511,30 @@ def build(animal: str):
     tint) and triangles, each part tagged with its half of the mouth."""
     parts = []
 
-    def add(ob, colour, jaw, tint, enamel=False):
+    def add(ob, colour, jaw, tint, crown=None):
+        """jaw: a weight, or a function of the positions giving one per vertex. crown: for
+        a tooth, (base, up): how high above the gum each vertex is is kept for its light."""
         v, n, f = _arrays(ob)
-        parts.append(dict(pos=v, normal=n, faces=f, colour=colour(v, n), jaw=np.full(len(v), float(jaw)),
-                          tint=np.full(len(v), tint), enamel=np.full(len(v), enamel)))
+        weight = jaw(v) if callable(jaw) else np.full(len(v), float(jaw))
+        height = np.full(len(v), np.inf) if crown is None else (v - crown[0]) @ crown[1]
+        parts.append(dict(pos=v, normal=n, faces=f, colour=colour(v, n), jaw=weight,
+                          tint=np.full(len(v), tint), crown=height))
 
     for lower in (False, True):
-        for i, (v, f, base, up, length) in enumerate(teeth(animal, lower)):
+        for i, (v, f, base, up, length, shade) in enumerate(teeth(animal, lower)):
             axis = base
             f = _orient(v, f, lambda c, axis=axis, up=up: (c - axis) - np.outer((c - axis) @ up, up))
             ob = _object(f"tooth{int(lower)}{i}", v, f)
             ob.data.shade_smooth()
-
-            def enamel(pos, n, base=base, up=up, length=length):
-                t = np.clip((pos - base) @ up / (0.5 * length), 0, 1) ** 0.7
-                return np.outer(1 - t, ENAMEL_ROOT) + np.outer(t, ENAMEL)
-            add(ob, enamel, lower, 0.0, enamel=True)
+            add(ob, lambda pos, n, b=base, u=up, ln=length, sh=shade: enamel_colour(pos, b, u, ln, sh),
+                lower, 0.0, crown=(base, up))
 
         v, f, margin, away = gum(animal, lower)
         f = _orient(v, f, lambda c, away=away: np.tile(away, (len(c), 1)))
         ob = _object(f"gum{int(lower)}", v, f)
         ob.data.shade_smooth()
         gum_y = LOWER_GUM_Y if lower else UPPER_GUM_Y
-
-        def gum_colour(pos, n, gum_y=gum_y):
-            t = np.clip(np.abs(pos[:, 1] - gum_y) / 0.025, 0, 1)
-            return np.outer(1 - t, GUM_MARGIN) + np.outer(t, GUM)
-        add(ob, gum_colour, lower, SOFT_TINT)
+        add(ob, lambda pos, n, gy=gum_y: gum_colour(animal, pos, gy), lower, SOFT_TINT)
         if not lower:
             gum_verts = v
             pv, pf = palate(v)
@@ -427,42 +547,43 @@ def build(animal: str):
 
     ob = tongue(animal)
     ob.data.shade_smooth()
-    tip_z = TONGUE[animal][0]
-
-    def tongue_colour(pos, n):
-        t = np.clip((pos[:, 2] - (tip_z - 0.15)) / 0.15, 0, 1)
-        colour = np.outer(1 - t, TONGUE_COLOUR[animal]) + np.outer(t, TONGUE_TIP)
-        middle = np.exp(-((pos[:, 0] / TONGUE[animal][7]) ** 2)) * (n[:, 1] > 0.5)
-        speckle = 1 + PAPILLAE[animal] * _noise(pos, 0.004)
-        return colour * ((1 - 0.15 * middle) * speckle)[:, None]
-    add(ob, tongue_colour, 1, SOFT_TINT)
+    add(ob, lambda pos, n: tongue_colour(animal, pos, n), lambda pos: tongue_lift(animal, pos), TONGUE_TINT)
     return parts
 
 
 def bake_light(parts):
     """Ambient occlusion per vertex by ray casts against its own half of the mouth (the
-    jaw is open whenever any of it shows), darker toward the throat."""
+    jaw is open whenever any of it shows) and, in the jaw, a floor under the tongue;
+    darker toward the throat, and on the teeth right by the gum."""
     k = np.arange(AO_RAYS) + 0.5
     r, a = np.sqrt(k / AO_RAYS), k * np.pi * (3 - np.sqrt(5))  # cosine-weighted, spread evenly
     local = np.column_stack([r * np.cos(a), r * np.sin(a), np.sqrt(1 - r ** 2)])
-    for jaw in (0.0, 1.0):
-        group = [p for p in parts if p["jaw"][0] == jaw]
+    floor_z = ARCH_FRONT + LOWER_ARCH[1]
+    floor = ([(-0.7, FLOOR_Y, floor_z), (0.7, FLOOR_Y, floor_z), (0.7, FLOOR_Y, -1.2), (-0.7, FLOOR_Y, -1.2)],
+             [(0, 1, 2, 3)])
+    for on_jaw in (False, True):
+        group = [p for p in parts if (p["jaw"].max() > 0.5) == on_jaw]
         offsets = np.cumsum([0] + [len(p["pos"]) for p in group])
-        tree = BVHTree.FromPolygons(
-            [tuple(v) for p in group for v in p["pos"]],
-            [tuple(int(i) for i in f + o) for p, o in zip(group, offsets) for f in p["faces"]])
+        verts = [tuple(v) for p in group for v in p["pos"]]
+        polygons = [tuple(int(i) for i in f + o) for p, o in zip(group, offsets) for f in p["faces"]]
+        if on_jaw:
+            polygons.append(tuple(len(verts) + i for i in floor[1][0]))
+            verts += floor[0]
+        tree = BVHTree.FromPolygons(verts, polygons)
         for p in group:
             light = np.empty(len(p["pos"]))
             for i, (pos, n) in enumerate(zip(p["pos"], p["normal"])):
                 t1 = np.cross(n, [1.0, 0, 0] if abs(n[0]) < 0.9 else [0, 1.0, 0])
                 t1 /= np.linalg.norm(t1)
                 dirs = local @ np.array([t1, np.cross(n, t1), n])
-                start = pos + n * 1e-4
+                start = pos + n * AO_START
                 hits = sum(tree.ray_cast(start, d, AO_REACH)[0] is not None for d in dirs)
-                light[i] = AO_FLOOR + (1 - AO_FLOOR) * (1 - hits / AO_RAYS)
+                light[i] = AO_FLOOR + (1 - AO_FLOOR) * (1 - hits / AO_RAYS) ** AO_POWER
+            enamel = np.isfinite(p["crown"])
+            by_gum = 1 - CROWN_SHADOW * np.exp(-np.maximum(p["crown"], 0) / CROWN_SHADOW_SPAN)
+            light = np.where(enamel, (1 - ENAMEL_AO * (1 - light)) * by_gum, light)
             deep = np.clip((ARCH_FRONT - p["pos"][:, 2]) / DEEP_SPAN, 0, 1)
-            light *= 1 - DEEP * deep ** 0.8
-            p["light"] = np.where(p["enamel"], light * ENAMEL_LIGHT, light)
+            p["light"] = light * (1 - DEEP * deep ** 0.8)
 
 
 def save(parts, path: Path):
@@ -473,7 +594,7 @@ def save(parts, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path, pos=merged["pos"].astype("f4"), normal=merged["normal"].astype("f2"),
                         colour=np.round(np.clip(merged["colour"], 0, 1) * 255).astype("u1"),
-                        jaw=merged["jaw"].astype("u1"), tint=merged["tint"].astype("f2"),
+                        jaw=merged["jaw"].astype("f2"), tint=merged["tint"].astype("f2"),
                         light=merged["light"].astype("f2"), faces=faces.astype("u2"))
     print(f"{path.name}: {len(merged['pos'])} vertices, {len(faces)} triangles, "
           f"{path.stat().st_size // 1024} KB")
@@ -513,14 +634,13 @@ def preview(merged, faces, folder: Path, animal: str):
     for name, (angle, position, (rx, ry), scale) in views.items():
         c, s = np.cos(angle), np.sin(angle)
         turn = np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
-        pos = merged["pos"].copy()
-        jaw = merged["jaw"] > 0.5
-        pos[jaw] = (pos[jaw] - hinge) @ turn.T + hinge
+        jaw = merged["jaw"][:, None]  # as the app does it: a blend of the closed and the swung
+        pos = _mix(merged["pos"], (merged["pos"] - hinge) @ turn.T + hinge, merged["jaw"])
         mesh = bpy.data.meshes.new(name)
         mesh.from_pydata([tuple(v) for v in pos], [], [tuple(int(i) for i in f) for f in faces])
         # Lit roughly like the app: its colour, its light, facing a light near the camera.
-        normal = merged["normal"].astype(float).copy()
-        normal[jaw] = normal[jaw] @ turn.T
+        normal = merged["normal"].astype(float)
+        normal = (1 - jaw) * normal + jaw * normal @ turn.T
         facing = np.clip(normal @ (np.array(position) / np.linalg.norm(position)), 0, 1)
         shade = merged["colour"] * (merged["light"] * (0.55 + 0.45 * facing))[:, None]
         colours = mesh.color_attributes.new("colour", "FLOAT_COLOR", "POINT")
