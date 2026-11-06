@@ -126,6 +126,12 @@ LIP_SHADOW = 0.45
 # widths below the cut (seen from the front).
 RIM_OPEN = 0.15
 RIM_SEARCH, RIM_SPAN, RIM_STEP = 0.08, 0.004, 0.02
+# That steep part is the lower lip's inner side; the rim is at its top, where the surface
+# comes forward no faster than RIM_FLAT of its steepest. A rim taken in the steep part
+# itself, deep in a recess, swings down less than the lips' edge in front of it (it is
+# nearer the hinge), so the opening's edge buckled up there, and anything painted on the
+# lip's inner side stayed in view below the opening.
+RIM_FLAT = 0.15
 RIM_EDGE = 0.5  # face widths: a surface coming forward this far at once is the model's edge, not a lip
 RIM_SMOOTH = 0.1  # mouth widths across which the rim is smoothed
 # Screen px over which the fur gives way to the lips: an edge smoothed like an antialiased
@@ -750,14 +756,16 @@ def lower_lip(vertices, faces, jaw, cut, across, cam_rot, cam_scale, photo_px, f
     x1, y1 = (at.max(axis=0) + (2 * span, search + 2 * span)).astype(int) + 1
     near = front_depth(ctx, vertices, faces, cam_rot, cam_scale, centre, (x0, y0, x1, y1))
     # Down each column from the cut: where the surface comes forward most steeply, if
-    # it does by RIM_STEP, is the lower lip's rim (by far more, it is the model's edge).
+    # it does by RIM_STEP, is the lower lip's inner side (by far more, it is the model's
+    # edge), and where that ends (RIM_FLAT) its rim.
     drop, found = np.zeros(len(cut)), np.zeros(len(cut))
     for i, (x, y) in enumerate(np.round(at - (x0, y0)).astype(int)):
         rise = near[y + 2 * span:y + search + 2 * span, x] - near[y:y + search, x]
         rise = np.where(np.isfinite(rise) & (rise < RIM_EDGE * face_width), rise, 0)
         best = int(np.argmax(rise))
         if rise[best] > RIM_STEP * face_width:
-            drop[i], found[i] = best + 2 * span, 1
+            flat = np.nonzero(rise[best:] < RIM_FLAT * rise[best])[0]
+            drop[i], found[i] = best + (flat[0] if len(flat) else len(rise) - 1 - best) + span, 1
     # Smoothed across the mouth like the opening's outline: a column that misses it takes
     # its neighbours', where most of them found it. Gone by the corners, where the lips
     # meet. Then the vertex at each spot.

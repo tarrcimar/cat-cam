@@ -308,8 +308,9 @@ shipped heads are like that:
   cut leaves, with rounded corners. Below the cut many heads have a recess
   before the lower lip (a slit left open, sometimes with teeth painted in
   it); as the mouth opens the opening reaches down to the lower lip's rim
-  (`RIM_*`), so that recess becomes part of the mouth instead of dropping
-  with the jaw like a flap. Inside the edge the lips roll inward: a band of
+  (`RIM_*`: the top of the lower lip's inner side, where the surface stops
+  coming forward), so that recess becomes part of the mouth instead of
+  dropping with the jaw like a flap. Inside the edge the lips roll inward: a band of
   their skin (`LIP_BAND`, coloured from the texture next to the cut, so a
   black-lipped cat keeps black lips) darkens into the mouth and shades the
   teeth just behind it, and the fur gives way to it over a px or two
