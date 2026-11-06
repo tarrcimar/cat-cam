@@ -284,7 +284,8 @@ shipped heads are like that:
 - **Opening it:** the jaw swings about a hinge well behind the mouth, where
   a jaw joint is (`JAW_HINGE` in `catcam/head3d.py`, in face widths, so a
   small mouth still has a long jaw), as far as your lower lip drops, up to a
-  gape of `OWN_GAPE_MAX` mouth widths and `OWN_JAW_MAX`. Everything below the
+  gape of `OWN_GAPE_MAX` mouth widths (but at least `OWN_GAPE_MIN` face
+  widths, so a small mouth still opens wide) and `OWN_JAW_MAX`. Everything below the
   lips goes where the jaw takes it, the lower lip no lower: your chin drops
   further than the jaw opens, and skin following it there would tear off
   the jaw. That swing reaches the skin through the jaw weights alone: skin

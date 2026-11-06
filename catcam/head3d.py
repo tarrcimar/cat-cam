@@ -56,6 +56,9 @@ BREATH_RISE = 0.008  # head heights a full breath lifts the head by
 JAW_HINGE = (0.0, 0.04, -0.55)
 OWN_JAW_MAX = 0.5
 OWN_GAPE_MAX = 1.0  # mouth widths: the most its lips part, so a small mouth opens round, not in a slot
+# ...but never less than OWN_GAPE_MIN face widths: capped at its own width, a small mouth
+# (Pleadwell's) opened hardly wider wide open than half open.
+OWN_GAPE_MIN = 0.15
 # A cat's upper lip hangs from its nose: whatever yours does (rising as you smile or
 # open wide), each point of it moves up or down from where the nose goes by at most
 # UPPER_LIP_TRAVEL of how far it is from the nose, so it never rides up into the nose
@@ -1174,7 +1177,7 @@ class Head3D:
         moved = landmark_moves[list(LIP_MIDDLE)] @ self.to_model.T
         drop = (moved[1] - moved[0]) @ self.mouth_axes[:, 1]  # the lower lip's, down is negative
         hinge = np.array(JAW_HINGE) * self.face_model
-        gape = min(-drop, OWN_GAPE_MAX * self.mouth_width)
+        gape = min(-drop, max(OWN_GAPE_MAX * self.mouth_width, OWN_GAPE_MIN * self.face_model))
         angle = min(np.arcsin(np.clip(gape / np.linalg.norm(hinge[1:]), 0, 1)), OWN_JAW_MAX)
         c, s = np.cos(angle), np.sin(angle)
         turn = self.mouth_axes @ np.array([[1, 0, 0], [0, c, -s], [0, s, c]]) @ self.mouth_axes.T
