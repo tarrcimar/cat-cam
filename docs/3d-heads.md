@@ -310,10 +310,12 @@ shipped heads are like that:
   it); as the mouth opens the opening reaches down to the lower lip's rim
   (`RIM_*`: the top of the lower lip's inner side, where the surface stops
   coming forward), so that recess becomes part of the mouth instead of
-  dropping with the jaw like a flap. Inside the edge the lips roll inward: a band of
-  their skin (`LIP_BAND`, coloured from the texture next to the cut, so a
-  black-lipped cat keeps black lips) darkens into the mouth and shades the
-  teeth just behind it, and the fur gives way to it over a px or two
+  dropping with the jaw like a flap. Inside the edge the lips roll inward: a
+  thin band of their skin (`LIP_BAND`, coloured from the texture next to the
+  cut, so a black-lipped cat keeps black lips) turns into the mouth's darker
+  lining and shades the teeth just behind it; the upper lip's is thinnest, so
+  the gum shows just inside it. Outside the edge the lip's colour covers the
+  fur for a px (`LIP_OUTLINE`), then gives way to it over a px or two
   instead of ending in a hard line.
 - **Teeth** are short and rounded on purpose: a friendly cartoon, not a
   predator (`tools/mouth_model.py`).

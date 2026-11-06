@@ -110,9 +110,12 @@ OPENING_REACH = 0.08
 # Inside the opening the lips roll inward: a band of their skin, LIP_BAND mouth widths deep
 # at the upper lip and at the lower, CORNER_BAND times more at the corners, where the lips
 # stretch. It takes the colour of the skin within LIP_SAMPLE mouth widths of the cut (its
-# darkest LIP_DARKEST: the lips, not the fur round them), darkens inward, and casts
-# LIP_SHADOW of a shadow as far again over the teeth and the inside behind it.
-LIP_BAND = (0.03, 0.06)
+# darkest LIP_DARKEST: the lips, not the fur round them), keeps it to about the middle of
+# the band and only then turns into the mouth's darker lining (darkened, the colour of pale
+# lips read as a brown ring), and casts LIP_SHADOW of a shadow a little past the band over
+# the teeth and the inside behind it. The upper lip's band is thin, so the gum shows just
+# inside it, above the teeth.
+LIP_BAND = (0.012, 0.022)
 CORNER_BAND = 0.5
 LIP_SAMPLE = 0.05
 LIP_DARKEST = 0.25
@@ -135,8 +138,11 @@ RIM_FLAT = 0.15
 RIM_EDGE = 0.5  # face widths: a surface coming forward this far at once is the model's edge, not a lip
 RIM_SMOOTH = 0.1  # mouth widths across which the rim is smoothed
 # Screen px over which the fur gives way to the lips: an edge smoothed like an antialiased
-# one, so in px whatever the face's size.
+# one, so in px whatever the face's size. The lips' colour covers LIP_OUTLINE px outside the
+# opening fully first: the opening's edge is cut out per px, and the fur at the cut's very
+# edge is often lighter (Meringue's), so a pale, dotted line ran round it.
 LIP_FEATHER = 1.5
+LIP_OUTLINE = 0.75
 
 # The head is shaped here, on the GPU, as Head3D._shape does it on the CPU: with a few
 # hundred thousand vertices that would take most of a frame. Each vertex follows its
@@ -470,7 +476,7 @@ LIPS_FRAGMENT_SHADER = """
 uniform vec3 lip_colour[OPENING];  // BGR (0..1) of the lips at each point of the opening's edge...
 uniform float lip_band[OPENING];   // ...and how far in (px) they roll
 uniform vec3 inner;                // BGR (0..1) of their wet inside, as the mouth's lining
-uniform float feather;             // px
+uniform vec2 edge;                 // px: the outline outside the opening, then its feather
 uniform float shadow;              // how dark their shadow on what is behind them is
 out vec4 color;
 void main() {
@@ -491,17 +497,17 @@ void main() {
     }
     if (!in_opening(p)) {
         // Just outside, the fur gives way to the lips over a px or two.
-        float a = 1.0 - smoothstep(0.0, feather, near);
+        float a = 1.0 - smoothstep(edge.x, edge.x + edge.y, near);
         color = vec4(lip * a, a);  // premultiplied
         return;
     }
-    // Inside: the lip's rim catches the light, then it rolls away into the mouth,
-    // darkening, and shades what is right behind it.
+    // Inside: the lip's rim catches the light, then it rolls away into the mouth, into
+    // its wet lining, and shades what is right behind it.
     float t = near / max(band, 1e-3);
-    float cover = 1.0 - smoothstep(0.5, 1.0, t);
-    vec3 c = mix(lip, inner, smoothstep(0.45, 1.0, t)) * mix(0.85, 0.45, smoothstep(0.15, 0.9, t));
-    c += 0.06 * exp(-pow((t - 0.12) / 0.1, 2.0));  // wet, where the rim turns in
-    float shade = shadow * (1.0 - smoothstep(0.6, 2.0, t));
+    float cover = 1.0 - smoothstep(0.55, 1.0, t);
+    vec3 c = mix(lip * 0.95, inner * 0.6, smoothstep(0.35, 1.0, t));
+    c += 0.05 * exp(-pow((t - 0.15) / 0.12, 2.0));  // wet, where the rim turns in
+    float shade = shadow * (1.0 - smoothstep(0.5, 1.6, t));
     color = vec4(c * cover, cover + (1.0 - cover) * shade);  // premultiplied
 }
 """
@@ -1000,7 +1006,7 @@ class Head3D:
         self.lip_band = self.round @ band * self.mouth_px
         soft = 1 + LINING_TINT * (np.asarray(self.flat.lip_tint, float) - 1)  # as the lining's
         self.lips_prog["inner"].value = tuple(np.multiply(OWN_LINING, soft)[::-1])
-        self.lips_prog["feather"].value = LIP_FEATHER
+        self.lips_prog["edge"].value = (LIP_OUTLINE, LIP_FEATHER)
         self.lips_prog["shadow"].value = LIP_SHADOW
         self.lips_prog["screen"].value = (self.out_w, self.out_h)
         self.lips_vao = ctx.vertex_array(self.lips_prog, [])
@@ -1025,7 +1031,7 @@ class Head3D:
         # Lips only just apart show a dark line between them, not just lips.
         apart = self.round @ np.concatenate([apart, apart[::-1]])
         self.lips_prog["lip_band"].value = list(np.minimum(self.lip_band, LIP_BAND_SHARE * apart))
-        grow = LIP_FEATHER + 1
+        grow = LIP_OUTLINE + LIP_FEATHER + 1
         self.lips_prog["area"].value = (*(opening.min(axis=0) - grow), *(opening.max(axis=0) + grow))
         ctx = self.renderer.ctx
         ctx.disable(moderngl.DEPTH_TEST)
