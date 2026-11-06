@@ -614,6 +614,20 @@ def follow_weights(vertices, photo_px, landmarks, points, face_model, face_width
     return csr_matrix((weights.ravel(), (rows, nearest.ravel())), shape=(len(photo_px), len(points)))
 
 
+def mend_splits(vertices, jaw, cut) -> np.ndarray:
+    """jaw with the points the import split in two along the jaw's edge but left out of
+    the lip cut (cut: its pairs), as their two sides differ too little there (just past
+    the mouth corners), given one weight, the two sides' mean: moving apart, untied, they
+    opened a dark crack beside the corners."""
+    _, group = np.unique(vertices, axis=0, return_inverse=True)
+    group = group.ravel()
+    count = group.max() + 1
+    mean = np.bincount(group, jaw, count) / np.bincount(group, minlength=count)
+    lips = np.zeros(count, bool)
+    lips[group[cut.ravel()]] = True
+    return np.where(lips[group], jaw, mean[group])
+
+
 def lip_sliver(photo_px, jaw, cut, face_width) -> tuple[np.ndarray, np.ndarray]:
     """Which pairs of the lip cut (cut: face's side, jaw's) run up a sliver of the jaw above
     the lips' edge (see SLIVER_GAP), and which vertices on the jaw lie above that edge
@@ -857,6 +871,7 @@ class Head3D:
             jaw = jaw.copy()
             jaw[np.concatenate([freed, self.lip_cut[sliver, 1]])] = 0
             self.lip_cut = self.lip_cut[~sliver]
+            jaw = mend_splits(self.rest, jaw, self.lip_cut)
         self.jaw_weight = jaw.astype(np.float64)[:, None] if len(jaw) else None
         self.follow = follow_weights(self.rest, self.photo_px, self.landmarks, points,
                                      face_width / float(mesh["cam_scale"]), face_width,
