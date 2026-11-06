@@ -433,17 +433,18 @@ in vec3 normal;
 in vec3 eye;
 in float light;
 uniform bool clip;        // only seen through the opening between the lips...
-uniform sampler2D skin;   // ...or else never in front of the head's outside (its depth)
+uniform bool behind_skin; // ...and never in front of the head's outside (its depth)
+uniform sampler2D skin;
 out vec4 color;
 """ + IN_OPENING + MOUTH_LIGHT + """
 void main() {
     // Only seen through the mouth: parts that would poke out through the chin or
     // cheeks (which slope back faster than the mouth inside) stay hidden. A head with
     // its own mouth really parts its lips: there, what pokes out in front of its skin
-    // goes, and its skin hides the rest.
-    if (clip) {
-        if (!in_opening(gl_FragCoord.xy)) discard;
-    } else {
+    // goes too. Its skin would hide the rest, but for the slit many heads have between
+    // their lips, through which the teeth showed in specks with the mouth closed.
+    if (clip && !in_opening(gl_FragCoord.xy)) discard;
+    if (behind_skin) {
         float outside = texelFetch(skin, ivec2(gl_FragCoord.xy), 0).r;
         if (outside < 1.0 && gl_FragCoord.z < outside) discard;
     }
@@ -900,7 +901,8 @@ class Head3D:
         parts = mouth3d.build(flat.lip_tint, cavity=not self.own_mouth, animal=animal)
         self.mouth_prog = ctx.program(vertex_shader=MOUTH_VERTEX_SHADER,
                                       fragment_shader=MOUTH_FRAGMENT_SHADER)
-        self.mouth_prog["clip"].value = not self.own_mouth
+        self.mouth_prog["clip"].value = not self.own_mouth  # own mouths: once the opening is known
+        self.mouth_prog["behind_skin"].value = self.own_mouth
         # The lining of the mouth takes on some of the lips' colour, as the gums do.
         lining = np.multiply(OWN_LINING, 1 + LINING_TINT * (np.asarray(flat.lip_tint, float) - 1))
         for prog in (self.prog, self.mouth_prog):  # the inside of the mouth is lit alike (MOUTH_LIGHT)
@@ -1002,6 +1004,7 @@ class Head3D:
         self.lips_prog["shadow"].value = LIP_SHADOW
         self.lips_prog["screen"].value = (self.out_w, self.out_h)
         self.lips_vao = ctx.vertex_array(self.lips_prog, [])
+        self.mouth_prog["clip"].value = True
 
     def _set_opening(self, opening: np.ndarray):
         """Hands the shaders the opening between the lips (OPENING screen px, gl_FragCoord)."""
