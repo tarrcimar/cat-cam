@@ -106,7 +106,7 @@ OPENING_REACH = 0.08
 # stretch. It takes the colour of the skin within LIP_SAMPLE mouth widths of the cut (its
 # darkest LIP_DARKEST: the lips, not the fur round them), darkens inward, and casts
 # LIP_SHADOW of a shadow as far again over the teeth and the inside behind it.
-LIP_BAND = (0.035, 0.06)
+LIP_BAND = (0.03, 0.06)
 CORNER_BAND = 0.5
 LIP_SAMPLE = 0.05
 LIP_DARKEST = 0.25
@@ -486,7 +486,7 @@ void main() {
     // darkening, and shades what is right behind it.
     float t = near / max(band, 1e-3);
     float cover = 1.0 - smoothstep(0.5, 1.0, t);
-    vec3 c = mix(lip, inner, smoothstep(0.2, 0.8, t)) * mix(0.85, 0.4, smoothstep(0.15, 0.9, t));
+    vec3 c = mix(lip, inner, smoothstep(0.45, 1.0, t)) * mix(0.85, 0.45, smoothstep(0.15, 0.9, t));
     c += 0.06 * exp(-pow((t - 0.12) / 0.1, 2.0));  // wet, where the rim turns in
     float shade = shadow * (1.0 - smoothstep(0.6, 2.0, t));
     color = vec4(c * cover, cover + (1.0 - cover) * shade);  // premultiplied
