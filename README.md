@@ -192,7 +192,7 @@ unmirrored picture, just as a normal camera would send.
 ### Options
 
 ```sh
-uv run cat-cam --camera 1             # use another webcam (e.g. if your iPhone camera opens)
+uv run cat-cam --camera 1             # use another webcam (they are listed, numbered, at the start)
 uv run cat-cam --mic "USB"            # listen to another microphone (part of its name)
 uv run cat-cam --background beach.jpg # start with this picture or video behind the animal
 ```
@@ -205,7 +205,7 @@ uv run cat-cam --background beach.jpg # start with this picture or video behind 
 
 | Problem | Fix |
 |---|---|
-| `Cannot open webcam` | Allow camera access for your terminal (see above). If you have several cameras, try `--camera 1`. |
+| `Cannot open webcam` | Allow camera access for your terminal (see above). Cat Cam uses the Mac's own camera if it has one; for another, pick its number from the list printed at the start with `--camera`. |
 | Error about the virtual camera | Do the OBS setup above, and make sure OBS is **not** running. |
 | Zoom shows a black picture | OBS is probably running; quit it and restart Cat Cam. |
 | Zoom does not list "OBS Virtual Camera" | Restart Zoom while Cat Cam is running. |
@@ -349,6 +349,7 @@ packaging/build_mac.sh
 ```
 catcam/
   app.py           main loop: webcam -> tracking -> render -> virtual camera
+  webcams.py       which webcam to use (the Mac's own, never OBS's virtual camera)
   picker.py        the cat picker
   cats.py          finding and loading prepared cats
   cat_mesh.py      the 3D head mesh and its OpenGL rendering

@@ -8,7 +8,7 @@ cut out of the webcam picture; no other webcam pixels are ever sent, so your
 face is never visible.
 
 Run:  uv run cat-cam      then pick "OBS Virtual Camera" in Zoom.
-      uv run cat-cam --camera 1   to use another webcam.
+      uv run cat-cam --camera 1   to use another webcam (listed at the start).
 Keys in the preview window: c = change cat, n = "this is my neutral face"
 (recalibrate), q = quit; the switches' keys are shown next to them (h: 3D paws,
 photo paws or your real hands).
@@ -60,6 +60,7 @@ from catcam.reactions import Reactions, reaction_for
 from catcam.real_hands import RealHands, Segmenter, cut_all
 from catcam.tail import Tail, TailHand, TailSkin, tail_skin
 from catcam.voice import Sounds, VirtualMic, Voice
+from catcam.webcams import choose, webcams
 
 OUT_W, OUT_H, FPS = 1280, 720, 30
 WINDOW = "Cat Cam"
@@ -497,6 +498,17 @@ def create_trackers():
     return face, hands
 
 
+def pick_webcam(asked: int | None) -> int:
+    """The webcam's number: the one asked for, else the best one there is. Lists them
+    all, as the numbers to ask for and, in the app's log, to see which one was used."""
+    cams = webcams()
+    chosen = choose(cams)
+    index = asked if asked is not None else chosen.index if chosen is not None else 0
+    for cam in cams:
+        print(f"{'*' if cam.index == index else ' '} camera {cam.index}: {cam.name} ({cam.model})")
+    return index
+
+
 def open_webcam(index: int):
     # macOS asks for camera permission asynchronously; keep retrying while the
     # permission dialog is open.
@@ -557,8 +569,9 @@ class Mouse:
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Cat face filter for Zoom.")
-    parser.add_argument("--camera", type=int, default=0, metavar="N",
-                        help="webcam to use (default 0; try 1 if the wrong camera opens)")
+    parser.add_argument("--camera", type=int, default=None, metavar="N",
+                        help="webcam to use, by number (default: the Mac's own camera; "
+                             "the numbers are listed at the start)")
     parser.add_argument("--mic", default=None, metavar="NAME",
                         help="microphone, by name or number (default: the system's; "
                              "list them: python -m catcam.voice --list)")
@@ -827,6 +840,7 @@ def check(cats: list[Cat]):
     Segmenter().close()  # and the segmenter's model, for real hands
     import sounddevice  # noqa: F401  (imported only when needed, so check here they're there)
     if sys.platform == "darwin":
+        import AVFoundation  # noqa: F401
         import Quartz  # noqa: F401
     print(f"OK: {len(cats)} cat{'' if len(cats) == 1 else 's'}")
 
@@ -872,7 +886,7 @@ def run(argv=None):
     picker = Picker([(c.name, c.sprite, c.background) for c in cats])
     trackers = create_trackers()
     vcam = open_virtual_camera()
-    webcam = open_webcam(args.camera)
+    webcam = open_webcam(pick_webcam(args.camera))
 
     background = None
     if args.background:
