@@ -209,6 +209,7 @@ uv run cat-cam --background beach.jpg # start with this picture or video behind 
 | Error about the virtual camera | Do the OBS setup above, and make sure OBS is **not** running. |
 | Zoom shows a black picture | OBS is probably running; quit it and restart Cat Cam. |
 | Zoom does not list "OBS Virtual Camera" | Restart Zoom while Cat Cam is running. |
+| The standalone app won't start | Everything it does is logged to `~/Library/Logs/Cat Cam.log`: which cameras it found and used, and why one would not open. |
 | The cat looks off while you are relaxed | Press `n` with a neutral face. |
 | "Looking for your face..." | Face the camera and make sure your face is lit. |
 | The call hears your real voice | Choose **BlackHole 2ch** as the microphone in Zoom. If Cat Cam shows a **Get the voice** button, BlackHole isn't installed yet: click it (see above). |

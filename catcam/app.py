@@ -16,6 +16,9 @@ photo paws or your real hands).
 
 import argparse
 import gc
+import os
+import platform
+import plistlib
 import subprocess
 import sys
 import threading
@@ -23,6 +26,7 @@ import time
 import traceback
 from concurrent.futures import Future
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import NamedTuple
 
 import cv2
@@ -851,19 +855,38 @@ def alert(message: str):
     subprocess.run(["osascript", "-e", f'display alert "Cat Cam" message "{quoted}"'], check=False)
 
 
+def log_to_file():
+    """The standalone app has no terminal, so everything it prints goes to the log
+    file instead, along with what its libraries print (OpenCV says there why a
+    camera won't open). Each start begins a new log. Started from a terminal (as the
+    build's --check is), it prints there as usual."""
+    if os.isatty(2):
+        return
+    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    log = open(LOG_FILE, "w", buffering=1)  # stays open while the app runs
+    for fd in (1, 2):  # the libraries' C code writes to these
+        os.dup2(log.fileno(), fd)
+    sys.stdout = sys.stderr = log
+    info = Path(sys.executable).parents[1] / "Info.plist"  # Cat Cam.app/Contents/
+    version = plistlib.loads(info.read_bytes()).get("CFBundleShortVersionString", "?")
+    print(f"Cat Cam {version} on macOS {platform.mac_ver()[0]} ({platform.machine()}), "
+          f"{time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+
 def main(argv=None):
-    """Runs Cat Cam; the standalone app shows errors in a dialog and a log file."""
+    """Runs Cat Cam; the standalone app shows errors in a dialog and logs everything."""
     if not getattr(sys, "frozen", False):
         return run(argv)
+    log_to_file()
     try:
         return run(argv)
     except SystemExit as e:
         if isinstance(e.code, str):
-            alert(e.code)
+            print(e.code)
+            alert(f"{e.code}\n\nDetails are in {LOG_FILE}.")
         raise
     except Exception:
-        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        LOG_FILE.write_text(traceback.format_exc())
+        traceback.print_exc()
         alert(f"Cat Cam stopped because of an error. Details are in {LOG_FILE}.")
         raise
 

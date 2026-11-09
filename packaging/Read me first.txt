@@ -80,4 +80,7 @@ TROUBLE?
   Security > Camera.
 - The call hears your real voice: choose "BlackHole 2ch" as the
   microphone in Zoom. If BlackHole was just installed, restart the Mac.
-- Errors are also written to ~/Library/Logs/Cat Cam.log
+- Anything else: everything Cat Cam does, the cameras it found and why
+  one would not open, is written to ~/Library/Logs/Cat Cam.log (in
+  Finder: Go > Go to Folder, paste that). Send it along when you ask
+  for help. It starts afresh each time Cat Cam opens.
